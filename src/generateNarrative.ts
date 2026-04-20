@@ -137,14 +137,16 @@ function fnv1a(input: string): number {
 }
 
 function nextSeed(seed: number): number {
-  // 線形合同風の撹拌。決定的であればよい。
-  return (Math.imul(seed ^ (seed >>> 15), 0x85ebca6b) >>> 0) ^ 0x9e3779b9
+  // 線形合同風の撹拌。最後に >>> 0 で必ず unsigned 32bit に正規化する。
+  // （0x9e3779b9 >= 2^31 のため、XOR だけだと JS の符号付き扱いで負値になる）
+  const x = Math.imul(seed ^ (seed >>> 15), 0x85ebca6b) >>> 0
+  return (x ^ 0x9e3779b9) >>> 0
 }
 
 function pickIndices(seed: number, poolSize: number, count: number): number[] {
   const pool = Array.from({ length: poolSize }, (_, i) => i)
   const picked: number[] = []
-  let s = seed || 1
+  let s = (seed || 1) >>> 0
   for (let i = 0; i < count && pool.length > 0; i++) {
     s = nextSeed(s)
     const idx = s % pool.length
