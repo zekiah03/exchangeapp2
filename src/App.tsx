@@ -222,115 +222,146 @@ function App() {
           )}
         </section>
 
-        <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={handleSelf}
-            disabled={!canSelf}
-            className="rounded-full border border-indigo-300 bg-white px-6 py-3 text-base font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            🔍 自分を紐解く
-          </button>
+        <div className="mt-6 flex flex-col items-center justify-center gap-2">
           <button
             type="button"
             onClick={handleInvert}
             disabled={!canInvert}
-            className="rounded-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-emerald-500 px-6 py-3 text-base font-semibold text-white shadow-md transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-emerald-500 px-8 py-3 text-base font-semibold text-white shadow-md transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-40"
           >
             🔄 反転する
           </button>
+          <p className="text-xs text-slate-500">
+            ステップ1 / 3 · まずは反転人間と出会う
+          </p>
         </div>
 
-        {showSelf && (
-          <article
-            id="self-card"
-            className="mt-8 overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-lg"
-          >
-            <header className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-indigo-50 px-5 py-4">
-              <h2 className="text-center text-lg font-semibold text-indigo-900">
-                あなたはなぜそう感じているか
-              </h2>
-              <p className="mt-1 text-center text-xs text-indigo-700/80">
-                環境・時間・文脈を中心に、過去→積み重ね→現在の3段で推定しています。
+        {showCard && (
+          <>
+            <article
+              id="invert-card"
+              className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
+            >
+              <header className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-rose-50 px-5 py-4">
+                <p className="text-center text-xs font-medium text-slate-500">
+                  ステップ1 · 気付き
+                </p>
+                <h2 className="mt-0.5 text-center text-lg font-semibold text-slate-800">
+                  こんな人間がいます
+                </h2>
+              </header>
+              <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+                <InvertBlock
+                  tone="like"
+                  pole="like"
+                  title="💚 好きなこと"
+                  items={hardItems}
+                />
+                <InvertBlock
+                  tone="hard"
+                  pole="hard"
+                  title="💔 やってて辛いこと"
+                  items={likeItems}
+                />
+              </div>
+              <p className="px-5 pb-2 text-center text-xs text-slate-500 sm:px-6">
+                各項目の下に、構造分析の8軸×4層から推定した「経緯」を表示しています。
               </p>
-            </header>
-            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-              <SelfBlock
-                tone="like"
-                pole="like"
-                title="💚 好きなこと"
-                items={likeItems}
-              />
-              <SelfBlock
-                tone="hard"
-                pole="hard"
-                title="💔 やってて辛いこと"
-                items={hardItems}
-              />
-            </div>
-            <footer className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/40 px-5 py-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={handleCopySelf}
-                className="rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              >
-                {copiedSelf ? 'コピーしました' : '紐解き文をコピー'}
-              </button>
-              <button
-                type="button"
-                onClick={handleResetSelf}
-                className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              >
-                閉じる
-              </button>
-            </footer>
-          </article>
+              <footer className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                >
+                  {copied ? 'コピーしました' : '紹介文をコピー'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                >
+                  もう一度入力する
+                </button>
+              </footer>
+            </article>
+
+            {!showSelf && (
+              <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                <div>
+                  <p className="text-xs font-medium text-indigo-600">
+                    ステップ2 / 3 · 自己分析
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-indigo-900 sm:text-base">
+                    では、あなた自身はなぜそう感じているのか？
+                  </p>
+                  <p className="mt-1 text-xs text-indigo-700/80">
+                    同じ軸で、自分の経緯を過去→積み重ね→現在の3段で紐解きます。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSelf}
+                  disabled={!canSelf}
+                  className="mt-3 w-full rounded-full border border-indigo-400 bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 sm:mt-0 sm:w-auto"
+                >
+                  🔍 自分を紐解く →
+                </button>
+              </div>
+            )}
+          </>
         )}
 
-        {showCard && (
-          <article
-            id="invert-card"
-            className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg"
-          >
-            <header className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-rose-50 px-5 py-4">
-              <h2 className="text-center text-lg font-semibold text-slate-800">
-                こんな人間がいます
-              </h2>
-            </header>
-            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-              <InvertBlock
-                tone="like"
-                pole="like"
-                title="💚 好きなこと"
-                items={hardItems}
-              />
-              <InvertBlock
-                tone="hard"
-                pole="hard"
-                title="💔 やってて辛いこと"
-                items={likeItems}
-              />
-            </div>
-            <p className="px-5 pb-2 text-center text-xs text-slate-500 sm:px-6">
-              各項目の下に、構造分析の8軸×4層から推定した「経緯」を表示しています。
-            </p>
-            <footer className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
-              >
-                {copied ? 'コピーしました' : '紹介文をコピー'}
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
-              >
-                もう一度入力する
-              </button>
-            </footer>
-          </article>
+        {showSelf && (
+          <>
+            <article
+              id="self-card"
+              className="mt-4 overflow-hidden rounded-2xl border border-indigo-200 bg-white shadow-lg"
+            >
+              <header className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-indigo-50 px-5 py-4">
+                <p className="text-center text-xs font-medium text-indigo-600">
+                  ステップ2 · 自己分析
+                </p>
+                <h2 className="mt-0.5 text-center text-lg font-semibold text-indigo-900">
+                  あなたはなぜそう感じているか
+                </h2>
+                <p className="mt-1 text-center text-xs text-indigo-700/80">
+                  環境・時間・文脈を中心に、過去→積み重ね→現在の3段で推定しています。
+                </p>
+              </header>
+              <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+                <SelfBlock
+                  tone="like"
+                  pole="like"
+                  title="💚 好きなこと"
+                  items={likeItems}
+                />
+                <SelfBlock
+                  tone="hard"
+                  pole="hard"
+                  title="💔 やってて辛いこと"
+                  items={hardItems}
+                />
+              </div>
+              <footer className="flex flex-col gap-2 border-t border-indigo-100 bg-indigo-50/40 px-5 py-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleCopySelf}
+                  className="rounded-lg border border-indigo-300 bg-white px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  {copiedSelf ? 'コピーしました' : '紐解き文をコピー'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetSelf}
+                  className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  閉じる
+                </button>
+              </footer>
+            </article>
+
+            <Takeaway likeItems={likeItems} hardItems={hardItems} />
+          </>
         )}
 
         <footer className="mt-12 text-center text-xs text-slate-400">
@@ -538,6 +569,103 @@ function StoryBlock({ story }: { story: Story }) {
           )
         })}
       </ol>
+    </div>
+  )
+}
+
+function Takeaway({
+  likeItems,
+  hardItems,
+}: {
+  likeItems: string[]
+  hardItems: string[]
+}) {
+  const sampleLike = likeItems[0]
+  const sampleHard = hardItems[0]
+  const hasBoth = Boolean(sampleLike && sampleHard)
+
+  return (
+    <article
+      id="takeaway-card"
+      className="mt-4 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-emerald-50 shadow-lg"
+    >
+      <header className="border-b border-amber-100 px-5 py-4">
+        <p className="text-center text-xs font-medium text-amber-700">
+          ステップ3 · 納得
+        </p>
+        <h2 className="mt-0.5 text-center text-lg font-semibold text-slate-800">
+          🪞 ここまでの気づき
+        </h2>
+      </header>
+      <div className="space-y-4 px-5 py-5 text-sm leading-relaxed text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+        <TakePoint
+          n={1}
+          title="同じ軸の上の別の極"
+          body="反転人間とあなたは、別々の人間に見えて、実は同じ8軸の上に並んでいる。義務⇄好奇心 / 努力⇄没頭 / 苦労⇄フロー / 結果⇄過程。"
+        />
+        <TakePoint
+          n={2}
+          title="違いを作ったのは経緯"
+          body="あなたと反転人間の違いは「人間の性分」ではなく、スキルの釣り合い・自律性・環境・時間の余白といった、出会った条件の差から来ている。"
+        />
+        <TakePoint
+          n={3}
+          title="反転は操作の選択肢"
+          body="条件を一つでも整え直すと、同じ行為は別の極に滑らかに動く。反転は言葉遊びではなく、どの層を動かすかを選ぶ技術。"
+        />
+
+        {hasBoth && (
+          <div className="rounded-xl border border-amber-200 bg-white/80 p-4 text-sm">
+            <p className="text-slate-700">
+              いま、あなたは
+              <span className="mx-1 rounded-md bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800">
+                {sampleLike}
+              </span>
+              を愛し、
+              <span className="mx-1 rounded-md bg-rose-100 px-1.5 py-0.5 font-medium text-rose-800">
+                {sampleHard}
+              </span>
+              に消耗している。
+            </p>
+            <p className="mt-2 text-slate-700">
+              でも、
+              <span className="mx-1 rounded-md bg-rose-100 px-1.5 py-0.5 font-medium text-rose-800">
+                {sampleLike}
+              </span>
+              を辛がる人も、
+              <span className="mx-1 rounded-md bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800">
+                {sampleHard}
+              </span>
+              を愛する人も、同じ構造の別の位置にいるだけ。
+            </p>
+            <p className="mt-2 text-slate-600">
+              違いは経緯で、あなた自身も明日、そちら側に一歩動ける。
+            </p>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function TakePoint({
+  n,
+  title,
+  body,
+}: {
+  n: number
+  title: string
+  body: string
+}) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white shadow">
+        {n}
+      </span>
+      <div>
+        <p className="font-semibold text-slate-800">{title}</p>
+        <p className="mt-0.5 text-slate-700">{body}</p>
+      </div>
     </div>
   )
 }
