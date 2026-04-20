@@ -7,7 +7,9 @@ import {
   generateReflectionAI,
   generateTakeawayAI,
   type AnsweredItem,
+  type IntentionItem,
   type ItemReflection,
+  type NextStep,
   type QuestionsResponse,
   type ReflectionResponse,
   type Takeaway as TakeawayData,
@@ -29,6 +31,10 @@ import {
 } from './items'
 import { ReflectionCard } from './components/ReflectionCard'
 import { Takeaway } from './components/Takeaway'
+import {
+  IntentionSheet,
+  type IntentionsByItem,
+} from './components/IntentionSheet'
 
 type Step = 'words' | 'ask' | 'see' | 'take'
 type Source = 'ai' | 'fallback'
@@ -80,7 +86,10 @@ function App() {
   const [questions, setQuestions] = useState<Stage<QuestionsResponse>>(freshStage)
   const [answers, setAnswers] = useState<AnswersByItem>({})
   const [reflections, setReflections] = useState<Stage<ReflectionResponse>>(freshStage)
+  const [intentions, setIntentions] = useState<IntentionsByItem>({})
+  const [nextStep, setNextStep] = useState<AnswerValue>(EMPTY_ANSWER)
   const [takeaway, setTakeaway] = useState<Stage<TakeawayData>>(freshStage)
+  const [takeawayPhase, setTakeawayPhase] = useState<'plan' | 'received'>('plan')
 
   const [copiedReflection, setCopiedReflection] = useState(false)
   const [copiedTakeaway, setCopiedTakeaway] = useState(false)
@@ -94,13 +103,21 @@ function App() {
   const canStart = likeItems.length > 0 || hardItems.length > 0
 
   const resetFlow = () => {
-    if (isEmpty(questions) && isEmpty(reflections) && isEmpty(takeaway) && step === 'words') {
+    if (
+      isEmpty(questions) &&
+      isEmpty(reflections) &&
+      isEmpty(takeaway) &&
+      step === 'words'
+    ) {
       return
     }
     setQuestions(freshStage())
     setAnswers({})
     setReflections(freshStage())
+    setIntentions({})
+    setNextStep(EMPTY_ANSWER)
     setTakeaway(freshStage())
+    setTakeawayPhase('plan')
     setStep('words')
   }
 
@@ -200,13 +217,30 @@ function App() {
     return answered
   }
 
+  const buildIntentionItems = (): IntentionItem[] => {
+    const out: IntentionItem[] = []
+    for (const t of likeItems) {
+      const v = intentions[itemKey('like', t)]
+      if (v) out.push({ text: t, pole: 'like', option: v.option, note: v.note })
+      else out.push({ text: t, pole: 'like', option: '', note: '' })
+    }
+    for (const t of hardItems) {
+      const v = intentions[itemKey('hard', t)]
+      if (v) out.push({ text: t, pole: 'hard', option: v.option, note: v.note })
+      else out.push({ text: t, pole: 'hard', option: '', note: '' })
+    }
+    return out
+  }
+
   const runTakeaway = async (
     answered: AnsweredItem[],
     refs: ItemReflection[],
+    intentionItems: IntentionItem[],
+    step: NextStep,
   ) => {
     if (!settings.apiKey) {
       setTakeaway({
-        data: buildFallbackTakeaway(answered, refs),
+        data: buildFallbackTakeaway(answered, refs, intentionItems, step),
         source: 'fallback',
         loading: false,
         error: null,
@@ -220,12 +254,14 @@ function App() {
         settings.model,
         answered,
         refs,
+        intentionItems,
+        step,
       )
       setTakeaway({ data, source: 'ai', loading: false, error: null })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setTakeaway({
-        data: buildFallbackTakeaway(answered, refs),
+        data: buildFallbackTakeaway(answered, refs, intentionItems, step),
         source: 'fallback',
         loading: false,
         error: msg,
@@ -268,15 +304,57 @@ function App() {
     }
   }
 
-  const handleProceedToTake = async () => {
+  const handleProceedToTake = () => {
     if (!questions.data || !reflections.data) return
     setStep('take')
+    setTakeawayPhase('plan')
     scrollTo('take-card')
+  }
+
+  const handleIntentionChange = (
+    key: string,
+    partial: Partial<AnswerValue>,
+  ) => {
+    setIntentions((prev) => {
+      const current = prev[key] ?? EMPTY_ANSWER
+      return {
+        ...prev,
+        [key]: {
+          option: partial.option ?? current.option,
+          note: partial.note ?? current.note,
+        },
+      }
+    })
+    if (takeaway.data) setTakeaway(freshStage())
+  }
+
+  const handleNextStepChange = (partial: Partial<AnswerValue>) => {
+    setNextStep((prev) => ({
+      option: partial.option ?? prev.option,
+      note: partial.note ?? prev.note,
+    }))
+    if (takeaway.data) setTakeaway(freshStage())
+  }
+
+  const handleReceiveTakeaway = async () => {
+    if (!questions.data || !reflections.data) return
     setCopiedTakeaway(false)
+    setTakeawayPhase('received')
+    scrollTo('take-card')
     if (!takeaway.data) {
       const answered = buildAnswered(questions.data)
-      await runTakeaway(answered, reflections.data.items)
+      await runTakeaway(
+        answered,
+        reflections.data.items,
+        buildIntentionItems(),
+        nextStep,
+      )
     }
+  }
+
+  const handleBackToPlan = () => {
+    setTakeawayPhase('plan')
+    scrollTo('take-card')
   }
 
   const handleBackToWords = () => {
@@ -294,7 +372,10 @@ function App() {
     setQuestions(freshStage())
     setAnswers({})
     setReflections(freshStage())
+    setIntentions({})
+    setNextStep(EMPTY_ANSWER)
     setTakeaway(freshStage())
+    setTakeawayPhase('plan')
     scrollTo('input-heading')
   }
 
@@ -500,18 +581,23 @@ function App() {
               </>
             )}
 
-            {step === 'take' && reflections.data && (
+            {step === 'take' && reflections.data && takeawayPhase === 'plan' && (
+              <IntentionSheet
+                likeItems={likeItems}
+                hardItems={hardItems}
+                intentions={intentions}
+                nextStep={nextStep}
+                onIntentionChange={handleIntentionChange}
+                onNextStepChange={handleNextStepChange}
+                onProceed={handleReceiveTakeaway}
+                onBack={handleBackToAsk}
+              />
+            )}
+
+            {step === 'take' && reflections.data && takeawayPhase === 'received' && (
               <>
-                <ReflectionCard
-                  reflections={reflections.data}
-                  onCopy={handleCopyReflection}
-                  onProceed={handleProceedToTake}
-                  onBack={handleBackToAsk}
-                  copied={copiedReflection}
-                  source={reflections.source ?? 'fallback'}
-                />
                 {takeaway.loading && (
-                  <article className="mt-4 rounded-2xl border border-amber-200 bg-white p-2 shadow-lg">
+                  <article className="mt-8 rounded-2xl border border-amber-200 bg-white p-2 shadow-lg">
                     <AILoading label="気付きを組み立てています…" />
                   </article>
                 )}
@@ -523,7 +609,12 @@ function App() {
                         setTakeaway(freshStage())
                         if (questions.data && reflections.data) {
                           const answered = buildAnswered(questions.data)
-                          void runTakeaway(answered, reflections.data.items)
+                          void runTakeaway(
+                            answered,
+                            reflections.data.items,
+                            buildIntentionItems(),
+                            nextStep,
+                          )
                         }
                       }}
                     />
@@ -534,6 +625,7 @@ function App() {
                     takeaway={takeaway.data}
                     onCopy={handleCopyTakeaway}
                     onReset={handleReset}
+                    onBack={handleBackToPlan}
                     copied={copiedTakeaway}
                     source={takeaway.source ?? 'fallback'}
                   />

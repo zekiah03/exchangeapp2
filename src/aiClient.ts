@@ -273,14 +273,41 @@ export async function generateReflectionAI(
 
 // ---- ④ 持ち帰る ----
 
+export type IntentionItem = {
+  text: string
+  pole: Pole
+  option: string
+  note: string
+}
+
+export type NextStep = {
+  option: string
+  note: string
+}
+
+function formatIntentionOrStep(option: string, note: string): string {
+  const o = option.trim()
+  const n = note.trim()
+  if (o && n) return `${o}（${n}）`
+  if (o) return o
+  if (n) return n
+  return '（未回答）'
+}
+
 function takeawayUserPrompt(
   items: AnsweredItem[],
   reflections: ItemReflection[],
+  intentions: IntentionItem[],
+  nextStep: NextStep,
 ): string {
   const reflMap = new Map<string, ItemReflection>()
   reflections.forEach((r) => reflMap.set(`${r.pole}::${r.text.trim()}`, r))
+  const intMap = new Map<string, IntentionItem>()
+  intentions.forEach((it) => intMap.set(`${it.pole}::${it.text.trim()}`, it))
+
   const blocks = items.map((it, i) => {
     const r = reflMap.get(`${it.pole}::${it.text.trim()}`)
+    const intent = intMap.get(`${it.pole}::${it.text.trim()}`)
     const ans =
       it.answers
         .filter((a) => a.selectedOption.trim() || a.note.trim())
@@ -291,19 +318,34 @@ function takeawayUserPrompt(
       `  回答:\n${ans}`,
       r ? `  反射: ${r.reflection}` : '',
       r ? `  反転: ${r.inversion}` : '',
+      intent
+        ? `  意図: ${formatIntentionOrStep(intent.option, intent.note)}`
+        : '  意図: （未回答）',
     ]
       .filter(Boolean)
       .join('\n')
   })
+
+  const nextStepText = formatIntentionOrStep(nextStep.option, nextStep.note)
+
   return [
-    'ここまでに集まったユーザー自身の事実と、それに対する反射・反転です。',
-    'ユーザーが今日持ち帰れる気付きを points として3つ、個別化された一段落を personalNote として書いてください。',
+    'ここまでに集まったユーザー自身の事実・反射・意図と、「明日1つ試すとしたら」の一歩です。',
+    'これらを踏まえて、ユーザーが今日持ち帰れる気付きを points として3つ、',
+    '個別化された一段落を personalNote として書いてください。',
     '',
     ...blocks,
     '',
+    `今夜／明日1つ試すとしたら: ${nextStepText}`,
+    '',
     'ルール:',
-    '- points は3つ。少なくとも1つは「同じ軸の別の位置」または「条件が動けば感覚も動く」のニュアンスを含める。',
-    '- personalNote はユーザーの具体回答を1〜2個引用して3〜4文。温度のある語り口で。',
+    '- points は3つ。構成の目安:',
+    '  ① ユーザーの意図（各項目の「どうしたい」）を踏まえた具体的な後押し。',
+    '  ② 「明日1つ試すとしたら」の一歩への肯定／微調整の提案（書かれていれば必ず引用、なければ軽いアイデア提示）。',
+    '  ③ 「同じ軸の別の位置」「条件が動けば感覚も動く」の角度を必ず1つ入れる。',
+    '- points の body は1〜2文、温度のある語り口で。説教っぽくしない。',
+    '- personalNote はユーザーの具体回答と意図を必ず1〜2個引用して3〜4文。',
+    '  「〜と教えてくれましたね」「〜したいと書いてくれました」のように事実を受けた語り口で。',
+    '- 断定や一般論で埋めないこと。',
   ].join('\n')
 }
 
@@ -312,13 +354,20 @@ export async function generateTakeawayAI(
   model: AIModel,
   items: AnsweredItem[],
   reflections: ItemReflection[],
+  intentions: IntentionItem[],
+  nextStep: NextStep,
 ): Promise<Takeaway> {
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: takeawayUserPrompt(items, reflections) }],
+    messages: [
+      {
+        role: 'user',
+        content: takeawayUserPrompt(items, reflections, intentions, nextStep),
+      },
+    ],
     output_config: { format: zodOutputFormat(TakeawaySchema) },
   })
   if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')

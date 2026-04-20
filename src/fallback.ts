@@ -2,8 +2,10 @@ import type {
   AnsweredItem,
   Axis,
   AxisSide,
+  IntentionItem,
   ItemQuestions,
   ItemReflection,
+  NextStep,
   Pole,
   QuestionsResponse,
   ReflectionResponse,
@@ -283,33 +285,76 @@ export function buildFallbackReflections(
   return { items }
 }
 
+function formatIntention(o: string, n: string): string {
+  const opt = o.trim()
+  const note = n.trim()
+  if (opt && note) return `${opt}（${note}）`
+  if (opt) return opt
+  if (note) return note
+  return ''
+}
+
 export function buildFallbackTakeaway(
-  answered: AnsweredItem[],
+  _answered: AnsweredItem[],
   reflections: ItemReflection[],
+  intentions: IntentionItem[],
+  nextStep: NextStep,
 ): Takeaway {
-  const sampleLike = answered.find((a) => a.pole === 'like')?.text
-  const sampleHard = answered.find((a) => a.pole === 'hard')?.text
   const dominantAxis = reflections[0]?.keyAxis
-  const points = [
-    {
-      title: '同じ軸の上の別の位置',
-      body: '好きと辛いは別の人間の話ではなく、同じ6軸の上で自分が今どこに立っているか、の違いです。',
-    },
-    {
-      title: '違いを作っているのは条件',
-      body: '選択・手応え・意味・場・身体・時間。どの条件が今そう傾けているのか、が見える化のカギです。',
-    },
-    {
-      title: '反転は条件の付け替え',
-      body: '条件を一つでも動かすと、同じ行為の感覚は滑らかに別の側へ動きます。反転は別人の話ではなく、自分自身の操作の選択肢。',
-    },
-  ]
   const axisHint = dominantAxis
     ? `特に${AXIS_LABEL[dominantAxis]}が今は効いて見えます。`
     : ''
+
+  const hardIntent = intentions.find(
+    (it) => it.pole === 'hard' && formatIntention(it.option, it.note),
+  )
+  const likeIntent = intentions.find(
+    (it) => it.pole === 'like' && formatIntention(it.option, it.note),
+  )
+  const step = formatIntention(nextStep.option, nextStep.note)
+
+  const intentionPoint = hardIntent
+    ? {
+        title: 'あなたの意図から',
+        body: `「${hardIntent.text}」を${formatIntention(hardIntent.option, hardIntent.note)}と書いてくれました。そこから逆算できる条件の動かし方が、今日の具体です。`,
+      }
+    : likeIntent
+      ? {
+          title: 'あなたの意図から',
+          body: `「${likeIntent.text}」を${formatIntention(likeIntent.option, likeIntent.note)}と書いてくれました。いまある良さを守る条件を一つ、明日に持ち込めます。`,
+        }
+      : {
+          title: '意図はあとからでも',
+          body: '今日は「どうしたい」を保留にしてOK。寝かせるうちに、自分の中から自然に出てくる意図もあります。',
+        }
+
+  const stepPoint = step
+    ? {
+        title: '明日の一歩',
+        body: `「${step}」と書いてくれました。小さいほど試しやすい。半歩で十分です。`,
+      }
+    : {
+        title: '明日の一歩',
+        body: '思いつかなければ無理に決めない。「自分で選べる部分」を1つ探すだけでも一歩です。',
+      }
+
+  const inversionPoint = {
+    title: '同じ軸の別の位置',
+    body: `条件を一つ動かせば、同じ行為の感覚は別の側へ滑ります。${axisHint}別人の話ではなく、自分自身の操作の選択肢です。`,
+  }
+
+  const points = [intentionPoint, stepPoint, inversionPoint]
+
+  const quoted = [hardIntent, likeIntent].filter(Boolean) as IntentionItem[]
   const personalNote =
-    sampleLike && sampleHard
-      ? `いま「${sampleLike}」は手が伸びて、「${sampleHard}」は消耗している。${axisHint}でも軸を変えれば位置も動く。今日のひとつの問いは、「${sampleHard}」のどの条件なら少し緩むか、です。`
-      : `今日のひとつの問いは、自分が一番効いていると感じた軸を、半歩だけ別の側に置けるか、です。${axisHint}`
+    quoted.length > 0
+      ? `${quoted
+          .map(
+            (it) =>
+              `「${it.text}」について「${formatIntention(it.option, it.note)}」と書いてくれました`,
+          )
+          .join('。')}。${step ? `さらに「${step}」を試すと決めてくれた。` : ''}${axisHint}今日はここまで来られただけで、十分です。`
+      : `今日はまだ意図を決めずに置いておく、という選択でも大丈夫。${axisHint}明日また、同じ問いに戻ってこれます。`
+
   return { points, personalNote }
 }

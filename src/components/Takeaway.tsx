@@ -4,12 +4,14 @@ export function Takeaway({
   takeaway,
   onCopy,
   onReset,
+  onBack,
   copied,
   source,
 }: {
   takeaway: TakeawayData
   onCopy: () => void
   onReset: () => void
+  onBack?: () => void
   copied: boolean
   source: 'ai' | 'fallback'
 }) {
@@ -39,7 +41,16 @@ export function Takeaway({
         <p className="text-xs text-slate-500">
           {source === 'fallback' ? 'テンプレート気付き' : 'AI気付き（あなたの回答に基づく）'}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100"
+            >
+              意図を書き直す
+            </button>
+          )}
           <button
             type="button"
             onClick={onCopy}
