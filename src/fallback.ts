@@ -1,6 +1,7 @@
 import type {
   AnsweredItem,
   Axis,
+  AxisSide,
   ItemQuestions,
   ItemReflection,
   Pole,
@@ -31,26 +32,36 @@ export const AXIS_ICON: Record<Axis, string> = {
   時間: '⏳',
 }
 
-type QuestionDef = { question: string; options: string[] }
+export const AXIS_SIDE_LABEL: Record<Axis, { left: string; right: string }> = {
+  選択: { left: '頼まれて・迫られて', right: '自分で選んだ' },
+  手応え: { left: '曖昧・見えにくい', right: '手応えあり' },
+  意味: { left: '価値観と切り離し', right: '価値観と繋がる' },
+  場: { left: '比較・中断・評価', right: '安全・集中' },
+  身体: { left: '緊張・疲弊', right: '緩み・整い' },
+  時間: { left: '追われている', right: '余裕あり' },
+}
 
-const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
+type FallbackOption = { text: string; pos: AxisSide }
+type FallbackQuestion = { question: string; options: FallbackOption[] }
+
+const AXIS_QUESTIONS: Record<Axis, { like: FallbackQuestion; hard: FallbackQuestion }> = {
   選択: {
     like: {
       question: 'これに最初に手を伸ばしたきっかけは？',
       options: [
-        '自分から興味を持って始めた',
-        '誰かに勧められて始めた',
-        '必要に迫られて始めた',
-        'よく覚えていない',
+        { text: '自分から興味を持って始めた', pos: 'right' },
+        { text: '誰かに勧められて始めた', pos: 'middle' },
+        { text: '必要に迫られて始めた', pos: 'left' },
+        { text: 'よく覚えていない', pos: 'middle' },
       ],
     },
     hard: {
       question: 'これを最初にやることになったきっかけは？',
       options: [
-        '自分で選んで始めた',
-        '頼まれて／指示されて',
-        '必要に迫られて',
-        'よく覚えていない',
+        { text: '自分で選んで始めた', pos: 'right' },
+        { text: '頼まれて／指示されて', pos: 'left' },
+        { text: '必要に迫られて', pos: 'left' },
+        { text: 'よく覚えていない', pos: 'middle' },
       ],
     },
   },
@@ -58,19 +69,19 @@ const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
     like: {
       question: 'やっていて、進んでいる手応えはある？',
       options: [
-        '明確にある',
-        'ゆるやかにある',
-        '曖昧なときもある',
-        'あまり気にしていない',
+        { text: '明確にある', pos: 'right' },
+        { text: 'ゆるやかにある', pos: 'right' },
+        { text: '曖昧なときもある', pos: 'middle' },
+        { text: 'あまり気にしていない', pos: 'middle' },
       ],
     },
     hard: {
       question: 'やっていて、進んでいる手応えはある？',
       options: [
-        'ある',
-        '曖昧・見えにくい',
-        'ほとんど感じない',
-        '場合による',
+        { text: 'ある', pos: 'right' },
+        { text: '曖昧・見えにくい', pos: 'left' },
+        { text: 'ほとんど感じない', pos: 'left' },
+        { text: '場合による', pos: 'middle' },
       ],
     },
   },
@@ -78,19 +89,19 @@ const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
     like: {
       question: '自分の大切なこと・価値観と繋がっている感じは？',
       options: [
-        'しっかり繋がっている',
-        'ゆるく繋がっている',
-        'あまり意識していない',
-        '切り離されている感じ',
+        { text: 'しっかり繋がっている', pos: 'right' },
+        { text: 'ゆるく繋がっている', pos: 'right' },
+        { text: 'あまり意識していない', pos: 'middle' },
+        { text: '切り離されている感じ', pos: 'left' },
       ],
     },
     hard: {
       question: '自分の大切なこと・価値観と繋がっている感じは？',
       options: [
-        '切り離されている',
-        'ほとんど繋がらない',
-        '場面によっては繋がる',
-        '本来は繋がるはずなのに',
+        { text: '切り離されている', pos: 'left' },
+        { text: 'ほとんど繋がらない', pos: 'left' },
+        { text: '場面によっては繋がる', pos: 'middle' },
+        { text: '本来は繋がるはずなのに', pos: 'middle' },
       ],
     },
   },
@@ -98,19 +109,19 @@ const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
     like: {
       question: '主にどんな場面でやっている？',
       options: [
-        '一人で集中しているとき',
-        '気の合う相手と一緒',
-        '大勢の中',
-        '場面はいろいろ',
+        { text: '一人で集中しているとき', pos: 'right' },
+        { text: '気の合う相手と一緒', pos: 'right' },
+        { text: '大勢の中', pos: 'left' },
+        { text: '場面はいろいろ', pos: 'middle' },
       ],
     },
     hard: {
       question: '主にどんな場面でやっている？',
       options: [
-        '評価・比較の場',
-        '中断されやすい場',
-        '大勢の前で',
-        '特定の相手との場',
+        { text: '評価・比較の場', pos: 'left' },
+        { text: '中断されやすい場', pos: 'left' },
+        { text: '大勢の前で', pos: 'left' },
+        { text: '特定の相手との場', pos: 'middle' },
       ],
     },
   },
@@ -118,19 +129,19 @@ const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
     like: {
       question: 'やっているとき、身体はどんな感じ？',
       options: [
-        '肩が緩んでいる',
-        '前のめりで集中',
-        '呼吸が深い',
-        'あまり意識していない',
+        { text: '肩が緩んでいる', pos: 'right' },
+        { text: '前のめりで集中', pos: 'right' },
+        { text: '呼吸が深い', pos: 'right' },
+        { text: 'あまり意識していない', pos: 'middle' },
       ],
     },
     hard: {
       question: 'やっているとき、身体はどんな感じ？',
       options: [
-        '肩・胸が固い',
-        '呼吸が浅い',
-        '疲労を感じる',
-        'あまり意識していない',
+        { text: '肩・胸が固い', pos: 'left' },
+        { text: '呼吸が浅い', pos: 'left' },
+        { text: '疲労を感じる', pos: 'left' },
+        { text: 'あまり意識していない', pos: 'middle' },
       ],
     },
   },
@@ -138,19 +149,19 @@ const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
     like: {
       question: '時間の感覚は？',
       options: [
-        '自分のペースで進められる',
-        '気づけば時間が経っている',
-        '短い時間でも味わえる',
-        '場合による',
+        { text: '自分のペースで進められる', pos: 'right' },
+        { text: '気づけば時間が経っている', pos: 'right' },
+        { text: '短い時間でも味わえる', pos: 'right' },
+        { text: '場合による', pos: 'middle' },
       ],
     },
     hard: {
       question: '時間の感覚は？',
       options: [
-        '締切に追われている',
-        '他の用事に圧迫される',
-        '時間が長く感じる',
-        '場合による',
+        { text: '締切に追われている', pos: 'left' },
+        { text: '他の用事に圧迫される', pos: 'left' },
+        { text: '時間が長く感じる', pos: 'left' },
+        { text: '場合による', pos: 'middle' },
       ],
     },
   },
@@ -199,7 +210,7 @@ export function buildFallbackQuestions(items: PoleItems): QuestionsResponse {
         return {
           axis,
           question: def.question,
-          options: def.options,
+          options: def.options.map((o) => o.text),
         }
       }),
     }
@@ -210,6 +221,17 @@ export function buildFallbackQuestions(items: PoleItems): QuestionsResponse {
       ...items.hard.map((t) => build(t, 'hard')),
     ],
   }
+}
+
+function findOptionSide(
+  axis: Axis,
+  pole: Pole,
+  selected: string,
+): AxisSide | null {
+  if (!selected.trim()) return null
+  const def = AXIS_QUESTIONS[axis][pole]
+  const hit = def.options.find((o) => o.text === selected.trim())
+  return hit?.pos ?? null
 }
 
 function summarizeAnswer(a: AnsweredItem['answers'][number]): string {
@@ -232,11 +254,22 @@ export function buildFallbackReflections(
       filled[0]?.axis ??
       it.answers[0]?.axis ??
       pickAxes(`${it.pole}::${it.text}`, 1)[0]
-    const firstSummary = filled[0] ? summarizeAnswer(filled[0]) : ''
-    const reflection =
-      firstSummary
-        ? `教えてくれた「${firstSummary}」から見えるのは、いまの${it.pole === 'like' ? '好き' : '辛さ'}が${AXIS_LABEL[keyAxis]}の側面と結びついている、という傾向です。`
-        : `「${it.text}」は、${AXIS_LABEL[keyAxis]}の側面が効きやすい行為です。`
+    const keyAnswer =
+      filled.find((a) => a.axis === keyAxis) ?? filled[0]
+    const axisSide: AxisSide = keyAnswer
+      ? findOptionSide(keyAnswer.axis, it.pole, keyAnswer.selectedOption) ??
+        (it.pole === 'like' ? 'right' : 'left')
+      : 'middle'
+    const firstSummary = keyAnswer ? summarizeAnswer(keyAnswer) : ''
+    const sideLabel =
+      axisSide === 'middle'
+        ? '中間'
+        : axisSide === 'right'
+          ? AXIS_SIDE_LABEL[keyAxis].right
+          : AXIS_SIDE_LABEL[keyAxis].left
+    const reflection = firstSummary
+      ? `教えてくれた「${firstSummary}」から見えるのは、いまの${it.pole === 'like' ? '好き' : '辛さ'}が${AXIS_LABEL[keyAxis]}の${sideLabel}側に寄っている、という傾向です。`
+      : `「${it.text}」は、${AXIS_LABEL[keyAxis]}の側面が効きやすい行為です。`
     const inversion = `もし${AXIS_INVERSION_HINT[keyAxis]}、同じ行為でも別の感覚に動く余地があります。`
     return {
       text: it.text,
@@ -244,6 +277,7 @@ export function buildFallbackReflections(
       reflection,
       inversion,
       keyAxis,
+      axisSide,
     }
   })
   return { items }

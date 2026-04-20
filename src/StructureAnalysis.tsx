@@ -1,5 +1,5 @@
 import { AXIS_ICON, AXIS_LABEL } from './fallback'
-import type { Axis } from './aiClient'
+import type { Axis, AxisSide } from './aiClient'
 
 const AXES: { key: Axis; description: string; left: string; right: string }[] = [
   {
@@ -11,32 +11,32 @@ const AXES: { key: Axis; description: string; left: string; right: string }[] = 
   {
     key: '手応え',
     description: '進んでいる感覚があるか、曖昧か',
-    left: '結果が遠い・曖昧',
-    right: '小さな進みがすぐ見える',
+    left: '曖昧・見えにくい',
+    right: '手応えあり',
   },
   {
     key: '意味',
     description: '自分の価値観と繋がっているか',
-    left: '価値観から切り離されている',
-    right: '価値観と自然に繋がる',
+    left: '価値観と切り離し',
+    right: '価値観と繋がる',
   },
   {
     key: '場',
     description: 'どんな場面・誰と一緒にやっているか',
-    left: '比較・中断・評価が多い',
-    right: '安全・集中できる',
+    left: '比較・中断・評価',
+    right: '安全・集中',
   },
   {
     key: '身体',
     description: '身体の感覚（緊張／緩み）',
-    left: '疲弊・緊張下',
-    right: '整い・緩み',
+    left: '緊張・疲弊',
+    right: '緩み・整い',
   },
   {
     key: '時間',
     description: '時間に追われているか、余裕があるか',
-    left: '追われている・締切直前',
-    right: '余裕がある・自分のペース',
+    left: '追われている',
+    right: '余裕あり',
   },
 ]
 
@@ -55,30 +55,58 @@ const PRINCIPLES: { title: string; body: string }[] = [
   },
 ]
 
+function AxisBar({ side }: { side: AxisSide | undefined }) {
+  const dotLeft =
+    side === 'left' ? '5%' : side === 'right' ? '95%' : side === 'middle' ? '50%' : null
+  return (
+    <div className="relative mt-2 h-6">
+      <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-rose-200 via-slate-200 to-emerald-200" />
+      <div className="absolute inset-y-0 left-0 flex items-center">
+        <span className="h-2 w-2 rounded-full bg-rose-400" aria-hidden="true" />
+      </div>
+      <div className="absolute inset-y-0 right-0 flex items-center">
+        <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+      </div>
+      {dotLeft !== null && (
+        <div
+          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: dotLeft }}
+          aria-label={`あなたの位置: ${side}`}
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[11px] font-bold text-white shadow ring-2 ring-white">
+            ★
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function StructureAnalysis({
-  highlightAxes,
+  positions,
 }: {
-  highlightAxes?: Axis[]
+  positions?: Partial<Record<Axis, AxisSide>>
 } = {}) {
-  const highlighted = new Set(highlightAxes ?? [])
+  const hasPositions = positions ? Object.keys(positions).length > 0 : false
   return (
     <div className="space-y-6 text-sm leading-relaxed text-slate-700 sm:text-base">
       <section>
         <h2 className="mb-2 text-sm font-semibold text-indigo-800 sm:text-base">
           6つの軸
         </h2>
-        {highlighted.size > 0 ? (
+        {hasPositions ? (
           <p className="mb-3 text-xs text-slate-600 sm:text-sm">
-            ハイライトされているのが、いまあなたの体験で効いていた軸です。
+            ★ が、いまあなたが立っている位置です。印がない軸は今回聞いていません。
           </p>
         ) : (
           <p className="mb-3 text-xs text-slate-600 sm:text-sm">
             ある行為に対する感覚は、この6軸のどこに自分が立っているかで決まります。
           </p>
         )}
-        <ul className="space-y-2.5">
+        <ul className="space-y-3">
           {AXES.map((a) => {
-            const isHi = highlighted.has(a.key)
+            const side = positions?.[a.key]
+            const isHi = side !== undefined
             return (
               <li
                 key={a.key}
@@ -97,21 +125,18 @@ export function StructureAnalysis({
                     }`}
                   >
                     {AXIS_ICON[a.key]} {AXIS_LABEL[a.key]}
-                    {isHi && <span className="ml-1">★</span>}
                   </span>
                   <span className="text-xs text-slate-500">{a.description}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="inline-flex rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 sm:text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex shrink-0 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
                     {a.left}
                   </span>
-                  <span className="text-indigo-400" aria-hidden="true">
-                    ⇄
-                  </span>
-                  <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 sm:text-sm">
+                  <span className="inline-flex shrink-0 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     {a.right}
                   </span>
                 </div>
+                <AxisBar side={side} />
               </li>
             )
           })}

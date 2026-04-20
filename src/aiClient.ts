@@ -34,6 +34,9 @@ const SYSTEM_PROMPT = `あなたは「自分のことばで反転を見つける
 const AXIS_ENUM = z.enum(['選択', '手応え', '意味', '場', '身体', '時間'])
 export type Axis = z.infer<typeof AXIS_ENUM>
 
+const AXIS_SIDE_ENUM = z.enum(['left', 'middle', 'right'])
+export type AxisSide = z.infer<typeof AXIS_SIDE_ENUM>
+
 const POLE_ENUM = z.enum(['like', 'hard'])
 export type Pole = z.infer<typeof POLE_ENUM>
 
@@ -90,6 +93,9 @@ const ReflectionItemSchema = z.object({
       '「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで、ユーザー自身の別条件下の感覚として書く。別人扱いしない。1〜2文。',
     ),
   keyAxis: AXIS_ENUM.describe('最も効いている軸'),
+  axisSide: AXIS_SIDE_ENUM.describe(
+    'keyAxis上の位置。left=外発・消耗側（頼まれて/曖昧/切り離し/比較/緊張/追われる）、right=内発・報酬側（自分で選んだ/手応えあり/繋がる/安全/緩み/余裕）、middle=中間または判定不能。ユーザーの選択肢・補足から判定する。',
+  ),
 })
 
 const ReflectionResponseSchema = z.object({
@@ -236,7 +242,15 @@ function reflectionUserPrompt(items: AnsweredItem[]): string {
     '- reflection: 「教えてくれた『〜』から見えるのは、〜に傾く」調で2〜3文。選択肢の文言または補足を可能なら引用する。育ち・経歴は推測しない。',
     '- inversion: 「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで1〜2文。別人扱いしない。',
     '- keyAxis: 最も効いている軸。',
-    '回答が空の項目は、項目テキスト自体から推測しすぎず、簡潔に。',
+    '- axisSide: ユーザーの回答から判定。left=外発・消耗側 / middle=中間・判定不能 / right=内発・報酬側。',
+    '  軸ごとの判定基準:',
+    '    選択: left=頼まれて・迫られて / right=自分で選んだ',
+    '    手応え: left=曖昧・見えにくい / right=手応えあり',
+    '    意味: left=価値観と切り離し / right=価値観と繋がる',
+    '    場: left=比較・中断・評価の場 / right=安全・集中できる場',
+    '    身体: left=緊張・疲弊 / right=緩み・整い',
+    '    時間: left=追われている / right=余裕あり',
+    '回答が空の項目は、項目テキスト自体から推測しすぎず、axisSide は middle とし、簡潔に書く。',
   ].join('\n')
 }
 
