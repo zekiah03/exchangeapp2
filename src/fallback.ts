@@ -31,30 +31,128 @@ export const AXIS_ICON: Record<Axis, string> = {
   時間: '⏳',
 }
 
-const AXIS_QUESTIONS: Record<Axis, { like: string; hard: string }> = {
+type QuestionDef = { question: string; options: string[] }
+
+const AXIS_QUESTIONS: Record<Axis, { like: QuestionDef; hard: QuestionDef }> = {
   選択: {
-    like: 'これに最初に手を伸ばしたのは、自分から？ それとも誰かに勧められて？',
-    hard: 'これを最初に始めたのは、自分で選んで？ それとも頼まれて／必要に迫られて？',
+    like: {
+      question: 'これに最初に手を伸ばしたきっかけは？',
+      options: [
+        '自分から興味を持って始めた',
+        '誰かに勧められて始めた',
+        '必要に迫られて始めた',
+        'よく覚えていない',
+      ],
+    },
+    hard: {
+      question: 'これを最初にやることになったきっかけは？',
+      options: [
+        '自分で選んで始めた',
+        '頼まれて／指示されて',
+        '必要に迫られて',
+        'よく覚えていない',
+      ],
+    },
   },
   手応え: {
-    like: 'やっていて、進んでいる手応えは何で感じていますか？',
-    hard: 'やっていて、進んでいる手応えはありますか？ それとも曖昧？',
+    like: {
+      question: 'やっていて、進んでいる手応えはある？',
+      options: [
+        '明確にある',
+        'ゆるやかにある',
+        '曖昧なときもある',
+        'あまり気にしていない',
+      ],
+    },
+    hard: {
+      question: 'やっていて、進んでいる手応えはある？',
+      options: [
+        'ある',
+        '曖昧・見えにくい',
+        'ほとんど感じない',
+        '場合による',
+      ],
+    },
   },
   意味: {
-    like: 'これをやることは、自分の大切なものや価値観と繋がっている感じがしますか？',
-    hard: 'これをやることは、自分の大切なものや価値観と繋がっている感じがしますか？',
+    like: {
+      question: '自分の大切なこと・価値観と繋がっている感じは？',
+      options: [
+        'しっかり繋がっている',
+        'ゆるく繋がっている',
+        'あまり意識していない',
+        '切り離されている感じ',
+      ],
+    },
+    hard: {
+      question: '自分の大切なこと・価値観と繋がっている感じは？',
+      options: [
+        '切り離されている',
+        'ほとんど繋がらない',
+        '場面によっては繋がる',
+        '本来は繋がるはずなのに',
+      ],
+    },
   },
   場: {
-    like: '主にどんな場面で、誰と一緒にこれをやっていますか？',
-    hard: '主にどんな場面で、誰と一緒にこれをやることになっていますか？',
+    like: {
+      question: '主にどんな場面でやっている？',
+      options: [
+        '一人で集中しているとき',
+        '気の合う相手と一緒',
+        '大勢の中',
+        '場面はいろいろ',
+      ],
+    },
+    hard: {
+      question: '主にどんな場面でやっている？',
+      options: [
+        '評価・比較の場',
+        '中断されやすい場',
+        '大勢の前で',
+        '特定の相手との場',
+      ],
+    },
   },
   身体: {
-    like: 'やっているとき、身体はどう感じていますか？（呼吸・肩・胸あたり）',
-    hard: 'やっているとき、身体はどう感じていますか？（呼吸・肩・胸あたり）',
+    like: {
+      question: 'やっているとき、身体はどんな感じ？',
+      options: [
+        '肩が緩んでいる',
+        '前のめりで集中',
+        '呼吸が深い',
+        'あまり意識していない',
+      ],
+    },
+    hard: {
+      question: 'やっているとき、身体はどんな感じ？',
+      options: [
+        '肩・胸が固い',
+        '呼吸が浅い',
+        '疲労を感じる',
+        'あまり意識していない',
+      ],
+    },
   },
   時間: {
-    like: 'やっているとき、時間に追われていますか？ それとも余裕がありますか？',
-    hard: 'やっているとき、時間に追われていますか？ それとも余裕がありますか？',
+    like: {
+      question: '時間の感覚は？',
+      options: [
+        '自分のペースで進められる',
+        '気づけば時間が経っている',
+        '短い時間でも味わえる',
+        '場合による',
+      ],
+    },
+    hard: {
+      question: '時間の感覚は？',
+      options: [
+        '締切に追われている',
+        '他の用事に圧迫される',
+        '時間が長く感じる',
+        '場合による',
+      ],
+    },
   },
 }
 
@@ -96,10 +194,14 @@ export function buildFallbackQuestions(items: PoleItems): QuestionsResponse {
     return {
       text,
       pole,
-      questions: axes.map((axis) => ({
-        axis,
-        question: AXIS_QUESTIONS[axis][pole],
-      })),
+      questions: axes.map((axis) => {
+        const def = AXIS_QUESTIONS[axis][pole]
+        return {
+          axis,
+          question: def.question,
+          options: def.options,
+        }
+      }),
     }
   }
   return {
@@ -110,16 +212,30 @@ export function buildFallbackQuestions(items: PoleItems): QuestionsResponse {
   }
 }
 
+function summarizeAnswer(a: AnsweredItem['answers'][number]): string {
+  const opt = a.selectedOption.trim()
+  const note = a.note.trim()
+  if (opt && note) return `${opt}（${note}）`
+  if (opt) return opt
+  if (note) return note
+  return ''
+}
+
 export function buildFallbackReflections(
   answered: AnsweredItem[],
 ): ReflectionResponse {
   const items: ItemReflection[] = answered.map((it) => {
-    const filled = it.answers.filter((a) => a.answer.trim().length > 0)
+    const filled = it.answers.filter(
+      (a) => a.selectedOption.trim() || a.note.trim(),
+    )
     const keyAxis: Axis =
-      filled[0]?.axis ?? it.answers[0]?.axis ?? pickAxes(`${it.pole}::${it.text}`, 1)[0]
+      filled[0]?.axis ??
+      it.answers[0]?.axis ??
+      pickAxes(`${it.pole}::${it.text}`, 1)[0]
+    const firstSummary = filled[0] ? summarizeAnswer(filled[0]) : ''
     const reflection =
-      filled.length > 0
-        ? `教えてくれた「${filled[0].answer.trim()}」から見えるのは、いまの${it.pole === 'like' ? '好き' : '辛さ'}が${AXIS_LABEL[keyAxis]}の側面と結びついている、という傾向です。`
+      firstSummary
+        ? `教えてくれた「${firstSummary}」から見えるのは、いまの${it.pole === 'like' ? '好き' : '辛さ'}が${AXIS_LABEL[keyAxis]}の側面と結びついている、という傾向です。`
         : `「${it.text}」は、${AXIS_LABEL[keyAxis]}の側面が効きやすい行為です。`
     const inversion = `もし${AXIS_INVERSION_HINT[keyAxis]}、同じ行為でも別の感覚に動く余地があります。`
     return {
@@ -154,7 +270,9 @@ export function buildFallbackTakeaway(
       body: '条件を一つでも動かすと、同じ行為の感覚は滑らかに別の側へ動きます。反転は別人の話ではなく、自分自身の操作の選択肢。',
     },
   ]
-  const axisHint = dominantAxis ? `特に${AXIS_LABEL[dominantAxis]}が今は効いて見えます。` : ''
+  const axisHint = dominantAxis
+    ? `特に${AXIS_LABEL[dominantAxis]}が今は効いて見えます。`
+    : ''
   const personalNote =
     sampleLike && sampleHard
       ? `いま「${sampleLike}」は手が伸びて、「${sampleHard}」は消耗している。${axisHint}でも軸を変えれば位置も動く。今日のひとつの問いは、「${sampleHard}」のどの条件なら少し緩むか、です。`

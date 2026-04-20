@@ -49,7 +49,14 @@ const QuestionItemSchema = z.object({
         question: z
           .string()
           .describe(
-            '具体的な日常場面が浮かぶ質問。閉じた問いではなく、「どんな場面で」「誰と」「どんな身体感覚で」のように開く。軸名そのものは書かない。',
+            '具体的な日常場面が浮かぶ質問。閉じた問いではなく、ユーザーが選択肢から選べば伝わるように書く。軸名そのものは書かない。',
+          ),
+        options: z
+          .array(z.string())
+          .min(3)
+          .max(5)
+          .describe(
+            'その質問に対する選択肢を3〜5個。各選択肢は10〜20字程度で短く。軸の範囲を広げて網羅する。「どちらとも言えない」「覚えていない」など中立選択肢を1つ含めてよい。',
           ),
       }),
     )
@@ -150,7 +157,10 @@ function questionsUserPrompt(items: PoleItems): string {
   return [
     'ユーザーが書き出した項目です。各項目に対して、6軸から最も関連する2〜3軸を選び、',
     '軸名は出さずに、具体的な日常場面が浮かぶ質問を書いてください。',
-    '「選びましたか？」のような閉じた問いではなく、「どんな場面で？」「誰と？」「どんな身体感覚で？」のように開いた問いにする。',
+    '各質問には3〜5個の選択肢（options）を必ず添えてください。',
+    '選択肢は、ユーザーがクリック1回で選べる短いフレーズ（10〜20字）で、その軸の範囲を広げて網羅するようにする。',
+    '「どちらとも言えない」「覚えていない」などの中立選択肢を1つ含めてよい。',
+    'ユーザーは選択肢を選ぶだけでも、補足を自由記入してもよい想定です。',
     '',
     describeItems(items),
     '',
@@ -180,7 +190,21 @@ export async function generateQuestionsAI(
 export type AnsweredItem = {
   text: string
   pole: Pole
-  answers: { axis: Axis; question: string; answer: string }[]
+  answers: {
+    axis: Axis
+    question: string
+    selectedOption: string
+    note: string
+  }[]
+}
+
+function formatAnswer(a: AnsweredItem['answers'][number]): string {
+  const opt = a.selectedOption.trim()
+  const note = a.note.trim()
+  const parts: string[] = []
+  if (opt) parts.push(`選択: ${opt}`)
+  if (note) parts.push(`補足: ${note}`)
+  return parts.length > 0 ? parts.join(' / ') : '（無回答）'
 }
 
 function reflectionUserPrompt(items: AnsweredItem[]): string {
@@ -190,19 +214,19 @@ function reflectionUserPrompt(items: AnsweredItem[]): string {
         ? it.answers
             .map(
               (a) =>
-                `  - 軸:${a.axis}\n    質問: ${a.question}\n    回答: ${a.answer.trim() || '（無回答）'}`,
+                `  - 軸:${a.axis}\n    質問: ${a.question}\n    回答: ${formatAnswer(a)}`,
             )
             .join('\n')
         : '  （回答なし）'
     return `[${i + 1}] ${poleLabel(it.pole)}: 「${it.text}」\n${ans}`
   })
   return [
-    'ユーザーが質問に答えてくれました。事実から反射してください。',
+    'ユーザーが質問に答えてくれました（選択肢 + 任意の補足）。事実から反射してください。',
     '',
     ...blocks,
     '',
     '各項目について:',
-    '- reflection: 「教えてくれた『〜』から見えるのは、〜に傾く」調で2〜3文。育ち・経歴は推測しない。',
+    '- reflection: 「教えてくれた『〜』から見えるのは、〜に傾く」調で2〜3文。選択肢の文言または補足を可能なら引用する。育ち・経歴は推測しない。',
     '- inversion: 「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで1〜2文。別人扱いしない。',
     '- keyAxis: 最も効いている軸。',
     '回答が空の項目は、項目テキスト自体から推測しすぎず、簡潔に。',
@@ -238,8 +262,8 @@ function takeawayUserPrompt(
     const r = reflMap.get(`${it.pole}::${it.text.trim()}`)
     const ans =
       it.answers
-        .filter((a) => a.answer.trim().length > 0)
-        .map((a) => `    ・${a.question} → ${a.answer.trim()}`)
+        .filter((a) => a.selectedOption.trim() || a.note.trim())
+        .map((a) => `    ・${a.question} → ${formatAnswer(a)}`)
         .join('\n') || '    （回答なし）'
     return [
       `[${i + 1}] ${poleLabel(it.pole)}: 「${it.text}」`,

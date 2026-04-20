@@ -21,7 +21,12 @@ import {
 import { Stepper } from './components/Stepper'
 import { AILoading, AIError } from './components/AIStatus'
 import { QuestionSheet } from './components/QuestionSheet'
-import { itemKey, type AnswersByItem } from './items'
+import {
+  EMPTY_ANSWER,
+  itemKey,
+  type AnswerValue,
+  type AnswersByItem,
+} from './items'
 import { ReflectionCard } from './components/ReflectionCard'
 import { Takeaway } from './components/Takeaway'
 
@@ -156,11 +161,15 @@ function App() {
       return {
         text: it.text,
         pole: it.pole,
-        answers: it.questions.map((qq, qi) => ({
-          axis: qq.axis,
-          question: qq.question,
-          answer: arr[qi] ?? '',
-        })),
+        answers: it.questions.map((qq, qi) => {
+          const v = arr[qi] ?? EMPTY_ANSWER
+          return {
+            axis: qq.axis,
+            question: qq.question,
+            selectedOption: v.option,
+            note: v.note,
+          }
+        }),
       }
     })
 
@@ -231,13 +240,20 @@ function App() {
     void runQuestions()
   }
 
-  const handleAnswerChange = (key: string, qIndex: number, value: string) => {
+  const handleAnswerChange = (
+    key: string,
+    qIndex: number,
+    partial: Partial<AnswerValue>,
+  ) => {
     setAnswers((prev) => {
-      const arr = [...(prev[key] ?? [])]
-      arr[qIndex] = value
+      const arr = (prev[key] ?? []).slice()
+      const current = arr[qIndex] ?? EMPTY_ANSWER
+      arr[qIndex] = {
+        option: partial.option ?? current.option,
+        note: partial.note ?? current.note,
+      }
       return { ...prev, [key]: arr }
     })
-    // user edited answers → invalidate downstream
     if (reflections.data) setReflections(freshStage())
     if (takeaway.data) setTakeaway(freshStage())
   }
