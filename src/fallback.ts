@@ -313,15 +313,38 @@ export function buildFallbackTakeaway(
   )
   const step = formatIntention(nextStep.option, nextStep.note)
 
+  // per-item responses — never mix poles
+  const perItem = intentions.map((it) => {
+    const raw = formatIntention(it.option, it.note)
+    if (!raw) {
+      return {
+        text: it.text,
+        pole: it.pole,
+        response:
+          it.pole === 'like'
+            ? '意図は保留のまま、いまある感覚をまず味わってみて。'
+            : '無理に決めなくていい。辛さは保留したままでも、手放しません。',
+      }
+    }
+    return {
+      text: it.text,
+      pole: it.pole,
+      response:
+        it.pole === 'like'
+          ? `「${raw}」と書いてくれました。この好きを支えている条件を1つ、明日も意識に置いておけます。`
+          : `「${raw}」と書いてくれました。動かせそうな条件を1つだけ選ぶと、辛さは半歩だけ緩みます。`,
+    }
+  })
+
   const intentionPoint = hardIntent
     ? {
         title: 'あなたの意図から',
-        body: `「${hardIntent.text}」を${formatIntention(hardIntent.option, hardIntent.note)}と書いてくれました。そこから逆算できる条件の動かし方が、今日の具体です。`,
+        body: `辛いものを${formatIntention(hardIntent.option, hardIntent.note)}と書いてくれました。そこから逆算できる条件の動かし方が、今日の具体です。`,
       }
     : likeIntent
       ? {
           title: 'あなたの意図から',
-          body: `「${likeIntent.text}」を${formatIntention(likeIntent.option, likeIntent.note)}と書いてくれました。いまある良さを守る条件を一つ、明日に持ち込めます。`,
+          body: `好きなものを${formatIntention(likeIntent.option, likeIntent.note)}と書いてくれました。いまある良さを守る条件を一つ、明日に持ち込めます。`,
         }
       : {
           title: '意図はあとからでも',
@@ -351,10 +374,10 @@ export function buildFallbackTakeaway(
       ? `${quoted
           .map(
             (it) =>
-              `「${it.text}」について「${formatIntention(it.option, it.note)}」と書いてくれました`,
+              `${it.pole === 'like' ? '好き' : '辛い'}のほうは「${formatIntention(it.option, it.note)}」と書いてくれました`,
           )
           .join('。')}。${step ? `さらに「${step}」を試すと決めてくれた。` : ''}${axisHint}今日はここまで来られただけで、十分です。`
       : `今日はまだ意図を決めずに置いておく、という選択でも大丈夫。${axisHint}明日また、同じ問いに戻ってこれます。`
 
-  return { points, personalNote }
+  return { perItem, points, personalNote }
 }

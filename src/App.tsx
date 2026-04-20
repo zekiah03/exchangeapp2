@@ -160,8 +160,21 @@ function App() {
     }
     setQuestions({ data: null, source: null, loading: true, error: null })
     try {
-      const data = await generateQuestionsAI(settings.apiKey, settings.model, poleItems)
-      setQuestions({ data, source: 'ai', loading: false, error: null })
+      // 好き・辛いを独立した API 呼び出しで生成し、両極の分析が LLM コンテキスト上で混ざらないようにする
+      const [likeRes, hardRes] = await Promise.all([
+        likeItems.length > 0
+          ? generateQuestionsAI(settings.apiKey, settings.model, likeItems, 'like')
+          : Promise.resolve<QuestionsResponse>({ items: [] }),
+        hardItems.length > 0
+          ? generateQuestionsAI(settings.apiKey, settings.model, hardItems, 'hard')
+          : Promise.resolve<QuestionsResponse>({ items: [] }),
+      ])
+      setQuestions({
+        data: { items: [...likeRes.items, ...hardRes.items] },
+        source: 'ai',
+        loading: false,
+        error: null,
+      })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setQuestions({
@@ -205,8 +218,22 @@ function App() {
     }
     setReflections({ data: null, source: null, loading: true, error: null })
     try {
-      const data = await generateReflectionAI(settings.apiKey, settings.model, answered)
-      setReflections({ data, source: 'ai', loading: false, error: null })
+      const likeAnswered = answered.filter((a) => a.pole === 'like')
+      const hardAnswered = answered.filter((a) => a.pole === 'hard')
+      const [likeRes, hardRes] = await Promise.all([
+        likeAnswered.length > 0
+          ? generateReflectionAI(settings.apiKey, settings.model, likeAnswered, 'like')
+          : Promise.resolve<ReflectionResponse>({ items: [] }),
+        hardAnswered.length > 0
+          ? generateReflectionAI(settings.apiKey, settings.model, hardAnswered, 'hard')
+          : Promise.resolve<ReflectionResponse>({ items: [] }),
+      ])
+      setReflections({
+        data: { items: [...likeRes.items, ...hardRes.items] },
+        source: 'ai',
+        loading: false,
+        error: null,
+      })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setReflections({

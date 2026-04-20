@@ -108,6 +108,19 @@ export type ItemReflection = z.infer<typeof ReflectionItemSchema>
 // ---- ④ 持ち帰る ----
 
 const TakeawaySchema = z.object({
+  perItem: z
+    .array(
+      z.object({
+        text: z.string().describe('元の項目テキスト'),
+        pole: POLE_ENUM.describe('その項目の極。他方に触れない。'),
+        response: z
+          .string()
+          .describe(
+            'この項目に対する1〜2文の個別返し。ユーザーの意図と反射を踏まえる。反対極の項目には一切触れない。',
+          ),
+      }),
+    )
+    .describe('各項目への個別レスポンス。好きと辛いの文面は必ず独立させる。'),
   points: z
     .array(
       z.object({
@@ -117,7 +130,7 @@ const TakeawaySchema = z.object({
     )
     .length(3)
     .describe(
-      '3点。少なくとも1つは「同じ軸の別の位置」または「条件が動けば感覚も動く」のニュアンスを含めること。',
+      '3点。構成: ①意図を踏まえた後押し、②明日の一歩への応答、③同じ軸の別の位置の角度。',
     ),
   personalNote: z
     .string()
@@ -127,6 +140,7 @@ const TakeawaySchema = z.object({
 })
 
 export type Takeaway = z.infer<typeof TakeawaySchema>
+export type TakeawayPerItem = z.infer<typeof TakeawaySchema>['perItem'][number]
 
 // ---- API client helpers ----
 
@@ -146,25 +160,22 @@ function systemBlocks() {
   ]
 }
 
-type PoleItems = { like: string[]; hard: string[] }
-
 function poleLabel(p: Pole): string {
   return p === 'like' ? '好き' : '辛い'
 }
 
-function describeItems(items: PoleItems): string {
-  const block = (label: string, arr: string[]) =>
-    arr.length > 0
-      ? `${label}:\n${arr.map((s) => `- ${s}`).join('\n')}`
-      : `${label}: （未入力）`
-  return [block('💚 好きなこと', items.like), block('💔 辛いこと', items.hard)].join('\n\n')
-}
-
 // ---- ② 質問生成 ----
+// 設計方針: pole（好き/辛い）ごとに独立した API 呼び出しを行い、AI の
+// コンテキスト上で両極の分析結果が混在しないようにする。
 
-function questionsUserPrompt(items: PoleItems): string {
+function questionsUserPrompt(items: string[], pole: Pole): string {
+  const header =
+    pole === 'like'
+      ? 'ユーザーが「好きなこと」として書きだした項目のみです。辛いことは一切含まれていません。'
+      : 'ユーザーが「辛いこと」として書きだした項目のみです。好きなことは一切含まれていません。'
   return [
-    'ユーザーが書き出した項目です。各項目について、6軸から最も関連する軸を選んで質問を生成してください。',
+    header,
+    '各項目について、6軸から最も関連する軸を選んで質問を生成してください。',
     '',
     '制約（厳守）:',
     '- questions は 1 項目あたり **ちょうど2個または3個**。4個以上にしないこと。',
@@ -172,30 +183,37 @@ function questionsUserPrompt(items: PoleItems): string {
     '- 選択肢は10〜20字の短いフレーズ。軸の範囲を広げて網羅する。',
     '- 軸名（"選択" 等）は出さない。ユーザーは軸を意識しない。',
     '- 「どちらとも言えない」などの中立選択肢を1つ含めてよい。',
+    `- すべての項目の pole は必ず "${pole}" とする。反対極に触れない。`,
     '',
     'ユーザーは選択肢をクリックするだけでも、補足を自由記入してもよい想定です。',
     '',
-    describeItems(items),
+    `${pole === 'like' ? '💚 好きなこと' : '💔 辛いこと'}:`,
+    ...items.map((s) => `- ${s}`),
     '',
-    '各項目について、items[].text には元の項目テキストをそのまま返し、pole も対応する側を返してください。',
+    '各項目について、items[].text には元の項目テキストをそのまま返してください。',
   ].join('\n')
 }
 
 export async function generateQuestionsAI(
   apiKey: string,
   model: AIModel,
-  items: PoleItems,
+  items: string[],
+  pole: Pole,
 ): Promise<QuestionsResponse> {
+  if (items.length === 0) return { items: [] }
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: questionsUserPrompt(items) }],
+    messages: [{ role: 'user', content: questionsUserPrompt(items, pole) }],
     output_config: { format: zodOutputFormat(QuestionsResponseSchema) },
   })
   if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')
-  return resp.parsed_output
+  // 念のため pole をクライアント側で強制上書き（LLM のうっかり防止）
+  return {
+    items: resp.parsed_output.items.map((it) => ({ ...it, pole })),
+  }
 }
 
 // ---- ③ 反射生成 ----
@@ -220,7 +238,11 @@ function formatAnswer(a: AnsweredItem['answers'][number]): string {
   return parts.length > 0 ? parts.join(' / ') : '（無回答）'
 }
 
-function reflectionUserPrompt(items: AnsweredItem[]): string {
+function reflectionUserPrompt(items: AnsweredItem[], pole: Pole): string {
+  const header =
+    pole === 'like'
+      ? 'ユーザーが「好きなこと」として書いた項目への回答です。辛い項目は含まれていません。反射も好き側だけに集中してください。'
+      : 'ユーザーが「辛いこと」として書いた項目への回答です。好き項目は含まれていません。反射も辛い側だけに集中してください。'
   const blocks = items.map((it, i) => {
     const ans =
       it.answers.length > 0
@@ -231,14 +253,16 @@ function reflectionUserPrompt(items: AnsweredItem[]): string {
             )
             .join('\n')
         : '  （回答なし）'
-    return `[${i + 1}] ${poleLabel(it.pole)}: 「${it.text}」\n${ans}`
+    return `[${i + 1}] 「${it.text}」\n${ans}`
   })
   return [
-    'ユーザーが質問に答えてくれました（選択肢 + 任意の補足）。事実から反射してください。',
+    header,
+    '事実から反射してください。',
     '',
     ...blocks,
     '',
     '各項目について:',
+    `- pole は必ず "${pole}" を返す。反対極に触れない。`,
     '- reflection: 「教えてくれた『〜』から見えるのは、〜に傾く」調で2〜3文。選択肢の文言または補足を可能なら引用する。育ち・経歴は推測しない。',
     '- inversion: 「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで1〜2文。別人扱いしない。',
     '- keyAxis: 最も効いている軸。',
@@ -258,17 +282,21 @@ export async function generateReflectionAI(
   apiKey: string,
   model: AIModel,
   items: AnsweredItem[],
+  pole: Pole,
 ): Promise<ReflectionResponse> {
+  if (items.length === 0) return { items: [] }
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: reflectionUserPrompt(items) }],
+    messages: [{ role: 'user', content: reflectionUserPrompt(items, pole) }],
     output_config: { format: zodOutputFormat(ReflectionResponseSchema) },
   })
   if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')
-  return resp.parsed_output
+  return {
+    items: resp.parsed_output.items.map((it) => ({ ...it, pole })),
+  }
 }
 
 // ---- ④ 持ち帰る ----
@@ -330,19 +358,22 @@ function takeawayUserPrompt(
 
   return [
     'ここまでに集まったユーザー自身の事実・反射・意図と、「明日1つ試すとしたら」の一歩です。',
-    'これらを踏まえて、ユーザーが今日持ち帰れる気付きを points として3つ、',
-    '個別化された一段落を personalNote として書いてください。',
+    'これらを踏まえて、perItem（各項目への個別返し）、points（3点のまとめ）、personalNote を書いてください。',
     '',
     ...blocks,
     '',
     `今夜／明日1つ試すとしたら: ${nextStepText}`,
     '',
     'ルール:',
-    '- points は3つ。構成の目安:',
-    '  ① ユーザーの意図（各項目の「どうしたい」）を踏まえた具体的な後押し。',
-    '  ② 「明日1つ試すとしたら」の一歩への肯定／微調整の提案（書かれていれば必ず引用、なければ軽いアイデア提示）。',
+    '- perItem: 各項目に1〜2文の個別返し。',
+    '  * 好き項目への返しでは辛い項目に一切触れない。逆も同じ。',
+    '  * ユーザーの意図（「どうしたい」）と反射内容を踏まえる。',
+    '  * pole は元の項目に合わせて正しく返す（好き→like、辛い→hard）。',
+    '- points は3つ。構成:',
+    '  ① 意図を踏まえた具体的な後押し。',
+    '  ② 「明日1つ試すとしたら」の一歩への肯定／微調整（書かれていれば引用、なければ軽い提案）。',
     '  ③ 「同じ軸の別の位置」「条件が動けば感覚も動く」の角度を必ず1つ入れる。',
-    '- points の body は1〜2文、温度のある語り口で。説教っぽくしない。',
+    '- points の body は1〜2文、温度のある語り口。説教っぽくしない。',
     '- personalNote はユーザーの具体回答と意図を必ず1〜2個引用して3〜4文。',
     '  「〜と教えてくれましたね」「〜したいと書いてくれました」のように事実を受けた語り口で。',
     '- 断定や一般論で埋めないこと。',
