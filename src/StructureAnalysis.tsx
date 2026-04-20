@@ -55,11 +55,71 @@ const PRINCIPLES: { title: string; body: string }[] = [
   },
 ]
 
-export function StructureAnalysis() {
+export function StructureAnalysis({
+  highlightAxes,
+}: {
+  highlightAxes?: Axis[]
+} = {}) {
+  const highlighted = new Set(highlightAxes ?? [])
   return (
-    <div className="space-y-8 text-sm leading-relaxed text-slate-700 sm:text-base">
+    <div className="space-y-6 text-sm leading-relaxed text-slate-700 sm:text-base">
       <section>
-        <h2 className="mb-2 text-base font-semibold text-indigo-800 sm:text-lg">
+        <h2 className="mb-2 text-sm font-semibold text-indigo-800 sm:text-base">
+          6つの軸
+        </h2>
+        {highlighted.size > 0 ? (
+          <p className="mb-3 text-xs text-slate-600 sm:text-sm">
+            ハイライトされているのが、いまあなたの体験で効いていた軸です。
+          </p>
+        ) : (
+          <p className="mb-3 text-xs text-slate-600 sm:text-sm">
+            ある行為に対する感覚は、この6軸のどこに自分が立っているかで決まります。
+          </p>
+        )}
+        <ul className="space-y-2.5">
+          {AXES.map((a) => {
+            const isHi = highlighted.has(a.key)
+            return (
+              <li
+                key={a.key}
+                className={`rounded-xl border p-3 transition ${
+                  isHi
+                    ? 'border-amber-300 bg-amber-50/70 shadow-sm ring-1 ring-amber-200'
+                    : 'border-slate-200 bg-white'
+                }`}
+              >
+                <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                      isHi
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-indigo-100 text-indigo-800'
+                    }`}
+                  >
+                    {AXIS_ICON[a.key]} {AXIS_LABEL[a.key]}
+                    {isHi && <span className="ml-1">★</span>}
+                  </span>
+                  <span className="text-xs text-slate-500">{a.description}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="inline-flex rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700 sm:text-sm">
+                    {a.left}
+                  </span>
+                  <span className="text-indigo-400" aria-hidden="true">
+                    ⇄
+                  </span>
+                  <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 sm:text-sm">
+                    {a.right}
+                  </span>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold text-indigo-800 sm:text-base">
           基本の考え方
         </h2>
         <ul className="space-y-2">
@@ -68,56 +128,16 @@ export function StructureAnalysis() {
               key={i}
               className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3"
             >
-              <p className="font-semibold text-slate-800">{p.title}</p>
-              <p className="mt-1 text-slate-700">{p.body}</p>
+              <p className="text-sm font-semibold text-slate-800">{p.title}</p>
+              <p className="mt-1 text-xs text-slate-700 sm:text-sm">{p.body}</p>
             </li>
           ))}
         </ul>
       </section>
 
-      <section>
-        <h2 className="mb-2 text-base font-semibold text-indigo-800 sm:text-lg">
-          6つの軸
-        </h2>
-        <p className="mb-3 text-slate-600">
-          ある行為に対する感覚は、この6軸のどこに自分が立っているかで決まります。
-        </p>
-        <ul className="space-y-3">
-          {AXES.map((a) => (
-            <li
-              key={a.key}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">
-                  {AXIS_ICON[a.key]} {AXIS_LABEL[a.key]}
-                </span>
-                <span className="text-xs text-slate-500">{a.description}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="inline-flex rounded-md bg-rose-50 px-2 py-0.5 text-sm font-medium text-rose-700">
-                  {a.left}
-                </span>
-                <span className="text-indigo-400" aria-hidden="true">
-                  ⇄
-                </span>
-                <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-sm font-medium text-emerald-700">
-                  {a.right}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="mb-2 text-base font-semibold text-indigo-800 sm:text-lg">
-          メカニズム
-        </h2>
-        <p className="text-slate-600">
-          条件を一つでも動かすと、同じ行為の感覚が滑らかに別の側へ動きます。反転は言葉遊びではなく、自分のどの条件を動かすかを選ぶ技術。
-        </p>
-      </section>
+      <p className="text-xs text-slate-600 sm:text-sm">
+        条件を一つでも動かすと、同じ行為の感覚が滑らかに別の側へ動きます。反転は言葉遊びではなく、自分のどの条件を動かすかを選ぶ技術。
+      </p>
     </div>
   )
 }

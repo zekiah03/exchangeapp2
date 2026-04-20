@@ -1,5 +1,6 @@
 import type { ReflectionResponse } from '../aiClient'
 import { AXIS_ICON, AXIS_LABEL } from '../fallback'
+import { StructureAnalysis } from '../StructureAnalysis'
 
 export function ReflectionCard({
   reflections,
@@ -67,6 +68,22 @@ export function ReflectionCard({
             </section>
           )
         })}
+
+        <section className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-4">
+          <header className="mb-3">
+            <p className="text-xs font-medium text-indigo-600">
+              📐 ところで、これがどういう構造か
+            </p>
+            <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+              いまあなたが立っている軸を、全体の地図に置き直してみます。
+            </p>
+          </header>
+          <StructureAnalysis
+            highlightAxes={Array.from(
+              new Set(reflections.items.map((it) => it.keyAxis)),
+            )}
+          />
+        </section>
       </div>
 
       <footer className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">

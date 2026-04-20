@@ -19,7 +19,6 @@ import {
   type PoleItems,
 } from './fallback'
 import { Stepper } from './components/Stepper'
-import { AnalysisDrawer } from './components/AnalysisDrawer'
 import { AILoading, AIError } from './components/AIStatus'
 import { QuestionSheet } from './components/QuestionSheet'
 import { itemKey, type AnswersByItem } from './items'
@@ -62,7 +61,6 @@ function App() {
   const [like, setLike] = useState('')
   const [hard, setHard] = useState('')
   const [step, setStep] = useState<Step>('words')
-  const [showAnalysis, setShowAnalysis] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AISettings>(() => loadSettings())
 
@@ -324,33 +322,22 @@ function App() {
               好きと辛いの間で、自分が今どこに立っているかを見にいく。
             </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setShowAnalysis(true)}
-              className="whitespace-nowrap rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-medium text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 sm:text-sm"
-              aria-haspopup="dialog"
-              aria-expanded={showAnalysis}
-            >
-              📐 構造分析
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSettings(true)}
-              className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:text-sm"
-              aria-haspopup="dialog"
-              aria-expanded={showSettings}
-              title={settings.apiKey ? 'AIキー設定済み' : 'AIキー未設定（テンプレート生成）'}
-            >
-              ⚙️ 設定
-              {settings.apiKey && (
-                <span
-                  aria-hidden="true"
-                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle"
-                />
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:text-sm"
+            aria-haspopup="dialog"
+            aria-expanded={showSettings}
+            title={settings.apiKey ? 'AIキー設定済み' : 'AIキー未設定（テンプレート生成）'}
+          >
+            ⚙️ 設定
+            {settings.apiKey && (
+              <span
+                aria-hidden="true"
+                className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle"
+              />
+            )}
+          </button>
         </header>
 
         <Stepper reached={stepNum} />
@@ -534,9 +521,6 @@ function App() {
         </footer>
       </div>
 
-      {showAnalysis && (
-        <AnalysisDrawer onClose={() => setShowAnalysis(false)} />
-      )}
       {showSettings && (
         <SettingsDrawer
           onClose={() => setShowSettings(false)}
