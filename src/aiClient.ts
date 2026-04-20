@@ -3,125 +3,116 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import type { AIModel } from './aiSettings'
 
-const SYSTEM_PROMPT = `あなたは「反転人間紹介アプリ」の分析アシスタントです。
+const SYSTEM_PROMPT = `あなたは「自分のことばで反転を見つけるアプリ」の対話アシスタントです。
 
-# フレームワーク
+# 大原則
+- ユーザーの過去・育ち・性格を推測して断定しないこと。
+- 役割は2つだけ:
+  (1) ユーザーに具体的な質問を返す
+  (2) ユーザーが教えてくれた事実から、grounded な反射を返す
+- 反射は必ず「教えてくれた『〜』から見えるのは…」の接続語で始める。事実→傾向の順で書く。
+- 「あなたは〜な人です」「〜だったから〜」のような断定や因果の推測は禁止。
 
-共通軸: 外発・消耗極 ⇄ 内発・報酬極
-（外から与えられた動機で消耗する側 ⇄ 内から湧く動機で過程自体が報酬になる側）
+# 6軸（共通フレームワーク）
+- 選択: 自分で選んだ / 頼まれた / 必要に迫られた
+- 手応え: 進んでいる感覚がある / 曖昧
+- 意味: 自分の価値観と繋がる / 切り離されている
+- 場: どんな場面・誰と一緒
+- 身体: 身体感覚・緊張・緩み
+- 時間: 追われている / 余裕がある
 
-4つの層:
-- L1 / WHY (動機の源泉): 義務感 ⇄ 好奇心
-- L2 / HOW (行動の質): 努力/耐える ⇄ 没頭/楽しむ
-- L3 / FEEL (過程での体感): 苦労/我慢 ⇄ フロー/充実
-- L4 / VALUE (価値の所在): 結果が全て ⇄ 過程が報酬
+# 反転の定義（重要）
+- 反転は「別人の別人生」ではない。
+- 反転は「同じ6軸上で、ユーザーが別の条件にいたら感じたかもしれない感覚」を指す。
+- 「もし条件が〜だったら」「同じ軸の別の位置にいる人は〜」のニュアンスで書くこと。
 
-8つの条件軸（"axis"の値として使う）:
-- "スキルと課題"（技能と難度の釣り合い）
-- "自律性"（自分で選べたか）
-- "動機の向き"（外発 or 内発）
-- "フィードバック"（手応え）
-- "意味づけ"（価値観との繋がり）
-- "心身コンディション"（疲弊か整いか）
-- "環境・文脈"（比較/中断 vs 安全/集中）
-- "時間の余白"（追われる vs ペース配分）
+# 出力ルール
+- 出力は必ず指定されたJSONスキーマに沿うこと。前置きや解説文は書かない。
+- 軸名（"選択"等）はメタデータには使うが、ユーザーに見せる文面（質問・反射・反転）には軸名そのものを書かない。
+- 文体は柔らかく、紋切り型を避け、温度のある語り口で。`
 
-# 言葉遣い
+const AXIS_ENUM = z.enum(['選択', '手応え', '意味', '場', '身体', '時間'])
+export type Axis = z.infer<typeof AXIS_ENUM>
 
-- 具体的で温度のある語り口。紋切り型（「〜しました」「大切です」等）を避ける。
-- 「親が〜だった」「中学時代に〜」「就職してから〜」のように、生活の手触りのある固有の描写を入れる。
-- 1つのストーリーが2〜3文で完結するように凝縮する。
-- 「〜だろう」「〜らしい」等の推量で締めて、断定を避ける（推定であることを残す）。
-- 出力は必ず指定されたJSONスキーマに沿うこと。余計な前置きや説明文は書かない。`
+const POLE_ENUM = z.enum(['like', 'hard'])
+export type Pole = z.infer<typeof POLE_ENUM>
 
-const AXIS_ENUM = z.enum([
-  'スキルと課題',
-  '自律性',
-  '動機の向き',
-  'フィードバック',
-  '意味づけ',
-  '心身コンディション',
-  '環境・文脈',
-  '時間の余白',
-])
+// ---- ② きく: 質問生成 ----
 
-const LAYER_ENUM = z.enum(['L1', 'L2', 'L3', 'L4'])
-
-// ---- 気付き（反転人間の人生経緯）----
-
-const InvertItemSchema = z.object({
-  text: z.string().describe('元の項目テキスト'),
-  backstory: z
-    .string()
-    .describe(
-      'この行為を愛する（または苦手とする）に至った、反転人間の生活の手触りある経緯を2〜3文で。親や学校・職場、転機となった場面などを具体に。',
-    ),
-  keyLayer: LAYER_ENUM.describe('最も反転が起きている層'),
-  layerShift: z
-    .string()
-    .describe('その層でどう感覚が傾いているかを1文（例：義務感ではなく好奇心側から手が伸びる）'),
-  conditions: z
+const QuestionItemSchema = z.object({
+  text: z.string().describe('元の項目テキスト（そのまま返す）'),
+  pole: POLE_ENUM,
+  questions: z
     .array(
       z.object({
-        axis: AXIS_ENUM,
-        detail: z.string().describe('その条件が反転人間にどう作用したかの具体描写。1文'),
-      }),
-    )
-    .min(2)
-    .max(3)
-    .describe('8軸のうち、このケースで最も効いている条件を2〜3個選ぶ'),
-})
-
-const InvertResponseSchema = z.object({
-  items: z.array(InvertItemSchema),
-})
-
-export type InvertResponse = z.infer<typeof InvertResponseSchema>
-
-// ---- 自己分析（ユーザー自身の時系列ストーリー）----
-
-const SelfItemSchema = z.object({
-  text: z.string().describe('元の項目テキスト'),
-  stages: z
-    .array(
-      z.object({
-        tag: z.enum(['出会い', '積み重ね', '現在']),
-        text: z
+        axis: AXIS_ENUM.describe('裏側の軸（メタデータ・ユーザーには見せない）'),
+        question: z
           .string()
           .describe(
-            '2〜3文で、環境・文脈・時間を中心に、この行為に対するユーザーの感覚がどう形成されていったかを推定する。',
+            '具体的な日常場面が浮かぶ質問。閉じた問いではなく、「どんな場面で」「誰と」「どんな身体感覚で」のように開く。軸名そのものは書かない。',
           ),
       }),
     )
-    .length(3),
-  keyLayer: LAYER_ENUM.describe('定着した層'),
+    .min(2)
+    .max(3),
 })
 
-const SelfResponseSchema = z.object({
-  items: z.array(SelfItemSchema),
+const QuestionsResponseSchema = z.object({
+  items: z.array(QuestionItemSchema),
 })
 
-export type SelfResponse = z.infer<typeof SelfResponseSchema>
+export type QuestionsResponse = z.infer<typeof QuestionsResponseSchema>
+export type ItemQuestions = z.infer<typeof QuestionItemSchema>
 
-// ---- 納得（まとめ）----
+// ---- ③ 見る: 反射＋反転 ----
+
+const ReflectionItemSchema = z.object({
+  text: z.string(),
+  pole: POLE_ENUM,
+  reflection: z
+    .string()
+    .describe(
+      '「教えてくれた『〜』から見えるのは、〜に傾く」調。事実→傾向の順で2〜3文。育ち・経歴は推測しない。',
+    ),
+  inversion: z
+    .string()
+    .describe(
+      '「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで、ユーザー自身の別条件下の感覚として書く。別人扱いしない。1〜2文。',
+    ),
+  keyAxis: AXIS_ENUM.describe('最も効いている軸'),
+})
+
+const ReflectionResponseSchema = z.object({
+  items: z.array(ReflectionItemSchema),
+})
+
+export type ReflectionResponse = z.infer<typeof ReflectionResponseSchema>
+export type ItemReflection = z.infer<typeof ReflectionItemSchema>
+
+// ---- ④ 持ち帰る ----
 
 const TakeawaySchema = z.object({
   points: z
     .array(
       z.object({
-        title: z.string().describe('気付きの見出し'),
-        body: z.string().describe('1〜2文の本文'),
+        title: z.string(),
+        body: z.string().describe('1〜2文'),
       }),
     )
-    .length(3),
+    .length(3)
+    .describe(
+      '3点。少なくとも1つは「同じ軸の別の位置」または「条件が動けば感覚も動く」のニュアンスを含めること。',
+    ),
   personalNote: z
     .string()
-    .describe('ユーザーの具体項目を1〜2個引用した、個別化された締めくくり1段落（3〜4文）'),
+    .describe(
+      'ユーザーの具体回答を1〜2個引用した、個別化された締め1段落（3〜4文）。温度のある語り口。',
+    ),
 })
 
 export type Takeaway = z.infer<typeof TakeawaySchema>
 
-// ---- API Client ----
+// ---- API client helpers ----
 
 function makeClient(apiKey: string) {
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
@@ -129,54 +120,7 @@ function makeClient(apiKey: string) {
 
 const MAX_TOKENS = 4096
 
-type Pole = 'like' | 'hard'
-
-function poleLabel(p: Pole): string {
-  return p === 'like' ? '好き（その行為を愛している）' : '辛い（その行為を苦手・消耗している）'
-}
-
-function invertUserPrompt(items: string[], pole: Pole): string {
-  const opposite: Pole = pole === 'like' ? 'hard' : 'like'
-  return [
-    `以下の項目は、あるユーザーが「${poleLabel(opposite)}」と感じている行為です。`,
-    `これらを逆に「${poleLabel(pole)}」と感じる別の人間が実在するとして、その人の人生経緯を推定してください。`,
-    '',
-    '項目:',
-    ...items.map((s) => `- ${s}`),
-    '',
-    '各項目について、フレームワークを踏まえて人生経緯（backstory）、定着した層（keyLayer/layerShift）、効いている条件（conditions）をJSONで返してください。',
-  ].join('\n')
-}
-
-function selfUserPrompt(items: string[], pole: Pole): string {
-  return [
-    `以下はあるユーザーが「${poleLabel(pole)}」と感じている行為です。`,
-    'なぜその人が今そう感じているのかを、環境・時間・文脈を中心に、過去→積み重ね→現在の3段で推定してください。',
-    '',
-    '項目:',
-    ...items.map((s) => `- ${s}`),
-    '',
-    '各項目について、3段(tag: 出会い/積み重ね/現在)のstagesと、定着した層(keyLayer)をJSONで返してください。',
-  ].join('\n')
-}
-
-function takeawayUserPrompt(likeItems: string[], hardItems: string[]): string {
-  return [
-    'ここまでで、あるユーザーについて反転人間の推定と自己分析を行いました。',
-    'ユーザーの具体項目を踏まえ、「気付き→自己分析」の後に腑に落ちる「納得のまとめ」を組み立ててください。',
-    '',
-    `好きなこと: ${likeItems.length > 0 ? likeItems.map((s) => `「${s}」`).join(' / ') : '（未入力）'}`,
-    `辛いこと: ${hardItems.length > 0 ? hardItems.map((s) => `「${s}」`).join(' / ') : '（未入力）'}`,
-    '',
-    'ルール:',
-    '- points は必ず3つ。紋切り型ではなく、反転がなぜ成立するか構造的に示す。',
-    '- personalNote は上記の具体項目を1〜2個引用して、ユーザーに向けた個別の所感（3〜4文）を書く。',
-    '- 「同じ人間の中に両極が共存している」「違いは経緯であり人柄ではない」のどちらかの角度を必ず含める。',
-  ].join('\n')
-}
-
 function systemBlocks() {
-  // system prompt is stable across calls → cache for repeat usage
   return [
     {
       type: 'text' as const,
@@ -186,62 +130,152 @@ function systemBlocks() {
   ]
 }
 
-export async function generateInvertAI(
+type PoleItems = { like: string[]; hard: string[] }
+
+function poleLabel(p: Pole): string {
+  return p === 'like' ? '好き' : '辛い'
+}
+
+function describeItems(items: PoleItems): string {
+  const block = (label: string, arr: string[]) =>
+    arr.length > 0
+      ? `${label}:\n${arr.map((s) => `- ${s}`).join('\n')}`
+      : `${label}: （未入力）`
+  return [block('💚 好きなこと', items.like), block('💔 辛いこと', items.hard)].join('\n\n')
+}
+
+// ---- ② 質問生成 ----
+
+function questionsUserPrompt(items: PoleItems): string {
+  return [
+    'ユーザーが書き出した項目です。各項目に対して、6軸から最も関連する2〜3軸を選び、',
+    '軸名は出さずに、具体的な日常場面が浮かぶ質問を書いてください。',
+    '「選びましたか？」のような閉じた問いではなく、「どんな場面で？」「誰と？」「どんな身体感覚で？」のように開いた問いにする。',
+    '',
+    describeItems(items),
+    '',
+    '各項目について、items[].text には元の項目テキストをそのまま返し、pole も対応する側を返してください。',
+  ].join('\n')
+}
+
+export async function generateQuestionsAI(
   apiKey: string,
   model: AIModel,
-  items: string[],
-  pole: Pole,
-): Promise<InvertResponse> {
+  items: PoleItems,
+): Promise<QuestionsResponse> {
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: invertUserPrompt(items, pole) }],
-    output_config: { format: zodOutputFormat(InvertResponseSchema) },
+    messages: [{ role: 'user', content: questionsUserPrompt(items) }],
+    output_config: { format: zodOutputFormat(QuestionsResponseSchema) },
   })
-  if (!resp.parsed_output) {
-    throw new Error('AIレスポンスをパースできませんでした')
-  }
+  if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')
   return resp.parsed_output
 }
 
-export async function generateSelfAI(
+// ---- ③ 反射生成 ----
+
+export type AnsweredItem = {
+  text: string
+  pole: Pole
+  answers: { axis: Axis; question: string; answer: string }[]
+}
+
+function reflectionUserPrompt(items: AnsweredItem[]): string {
+  const blocks = items.map((it, i) => {
+    const ans =
+      it.answers.length > 0
+        ? it.answers
+            .map(
+              (a) =>
+                `  - 軸:${a.axis}\n    質問: ${a.question}\n    回答: ${a.answer.trim() || '（無回答）'}`,
+            )
+            .join('\n')
+        : '  （回答なし）'
+    return `[${i + 1}] ${poleLabel(it.pole)}: 「${it.text}」\n${ans}`
+  })
+  return [
+    'ユーザーが質問に答えてくれました。事実から反射してください。',
+    '',
+    ...blocks,
+    '',
+    '各項目について:',
+    '- reflection: 「教えてくれた『〜』から見えるのは、〜に傾く」調で2〜3文。育ち・経歴は推測しない。',
+    '- inversion: 「もし条件が〜だったら／同じ軸の別の位置にいる人は〜」のニュアンスで1〜2文。別人扱いしない。',
+    '- keyAxis: 最も効いている軸。',
+    '回答が空の項目は、項目テキスト自体から推測しすぎず、簡潔に。',
+  ].join('\n')
+}
+
+export async function generateReflectionAI(
   apiKey: string,
   model: AIModel,
-  items: string[],
-  pole: Pole,
-): Promise<SelfResponse> {
+  items: AnsweredItem[],
+): Promise<ReflectionResponse> {
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: selfUserPrompt(items, pole) }],
-    output_config: { format: zodOutputFormat(SelfResponseSchema) },
+    messages: [{ role: 'user', content: reflectionUserPrompt(items) }],
+    output_config: { format: zodOutputFormat(ReflectionResponseSchema) },
   })
-  if (!resp.parsed_output) {
-    throw new Error('AIレスポンスをパースできませんでした')
-  }
+  if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')
   return resp.parsed_output
+}
+
+// ---- ④ 持ち帰る ----
+
+function takeawayUserPrompt(
+  items: AnsweredItem[],
+  reflections: ItemReflection[],
+): string {
+  const reflMap = new Map<string, ItemReflection>()
+  reflections.forEach((r) => reflMap.set(`${r.pole}::${r.text.trim()}`, r))
+  const blocks = items.map((it, i) => {
+    const r = reflMap.get(`${it.pole}::${it.text.trim()}`)
+    const ans =
+      it.answers
+        .filter((a) => a.answer.trim().length > 0)
+        .map((a) => `    ・${a.question} → ${a.answer.trim()}`)
+        .join('\n') || '    （回答なし）'
+    return [
+      `[${i + 1}] ${poleLabel(it.pole)}: 「${it.text}」`,
+      `  回答:\n${ans}`,
+      r ? `  反射: ${r.reflection}` : '',
+      r ? `  反転: ${r.inversion}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  })
+  return [
+    'ここまでに集まったユーザー自身の事実と、それに対する反射・反転です。',
+    'ユーザーが今日持ち帰れる気付きを points として3つ、個別化された一段落を personalNote として書いてください。',
+    '',
+    ...blocks,
+    '',
+    'ルール:',
+    '- points は3つ。少なくとも1つは「同じ軸の別の位置」または「条件が動けば感覚も動く」のニュアンスを含める。',
+    '- personalNote はユーザーの具体回答を1〜2個引用して3〜4文。温度のある語り口で。',
+  ].join('\n')
 }
 
 export async function generateTakeawayAI(
   apiKey: string,
   model: AIModel,
-  likeItems: string[],
-  hardItems: string[],
+  items: AnsweredItem[],
+  reflections: ItemReflection[],
 ): Promise<Takeaway> {
   const client = makeClient(apiKey)
   const resp = await client.messages.parse({
     model,
     max_tokens: MAX_TOKENS,
     system: systemBlocks(),
-    messages: [{ role: 'user', content: takeawayUserPrompt(likeItems, hardItems) }],
+    messages: [{ role: 'user', content: takeawayUserPrompt(items, reflections) }],
     output_config: { format: zodOutputFormat(TakeawaySchema) },
   })
-  if (!resp.parsed_output) {
-    throw new Error('AIレスポンスをパースできませんでした')
-  }
+  if (!resp.parsed_output) throw new Error('AIレスポンスをパースできませんでした')
   return resp.parsed_output
 }

@@ -1,21 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import './App.css'
 import { SettingsDrawer } from './SettingsDrawer'
 import { loadSettings, type AISettings } from './aiSettings'
 import {
-  generateInvertAI,
-  generateSelfAI,
+  generateQuestionsAI,
+  generateReflectionAI,
   generateTakeawayAI,
-  type InvertResponse,
-  type SelfResponse,
-  type Takeaway as AITakeaway,
+  type AnsweredItem,
+  type ItemReflection,
+  type QuestionsResponse,
+  type ReflectionResponse,
+  type Takeaway as TakeawayData,
 } from './aiClient'
+import {
+  buildFallbackQuestions,
+  buildFallbackReflections,
+  buildFallbackTakeaway,
+  type PoleItems,
+} from './fallback'
 import { Stepper } from './components/Stepper'
 import { AnalysisDrawer } from './components/AnalysisDrawer'
-import { InvertCard } from './components/InvertCard'
-import { SelfCard } from './components/SelfCard'
+import { AILoading, AIError } from './components/AIStatus'
+import { QuestionSheet } from './components/QuestionSheet'
+import { itemKey, type AnswersByItem } from './items'
+import { ReflectionCard } from './components/ReflectionCard'
 import { Takeaway } from './components/Takeaway'
-import { buildIntroText, buildSelfText } from './textFormat'
+
+type Step = 'words' | 'ask' | 'see' | 'take'
+type Source = 'ai' | 'fallback'
 
 const LIKE_PLACEHOLDER = `絵を描くこと
 細かい仕様書を読むこと
@@ -32,39 +44,66 @@ function splitLines(text: string): string[] {
     .filter((s) => s.length > 0)
 }
 
-type InvertAIState = {
-  status: 'loading' | 'ok' | 'error'
-  like?: InvertResponse
-  hard?: InvertResponse
-  error?: string
+type Stage<T> = {
+  data: T | null
+  source: Source | null
+  loading: boolean
+  error: string | null
 }
 
-type SelfAIState = {
-  status: 'loading' | 'ok' | 'error'
-  like?: SelfResponse
-  hard?: SelfResponse
-  takeaway?: AITakeaway
-  error?: string
-}
+const initialStage = <T,>(): Stage<T> => ({
+  data: null,
+  source: null,
+  loading: false,
+  error: null,
+})
 
 function App() {
   const [like, setLike] = useState('')
   const [hard, setHard] = useState('')
-  const [showCard, setShowCard] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [showSelf, setShowSelf] = useState(false)
-  const [copiedSelf, setCopiedSelf] = useState(false)
+  const [step, setStep] = useState<Step>('words')
   const [showAnalysis, setShowAnalysis] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AISettings>(() => loadSettings())
-  const [invertAI, setInvertAI] = useState<InvertAIState | null>(null)
-  const [selfAI, setSelfAI] = useState<SelfAIState | null>(null)
+
+  const [questions, setQuestions] = useState<Stage<QuestionsResponse>>(initialStage)
+  const [answers, setAnswers] = useState<AnswersByItem>({})
+  const [reflections, setReflections] = useState<Stage<ReflectionResponse>>(initialStage)
+  const [takeaway, setTakeaway] = useState<Stage<TakeawayData>>(initialStage)
+
+  const [copiedReflection, setCopiedReflection] = useState(false)
+  const [copiedTakeaway, setCopiedTakeaway] = useState(false)
 
   const likeItems = useMemo(() => splitLines(like), [like])
   const hardItems = useMemo(() => splitLines(hard), [hard])
+  const poleItems: PoleItems = useMemo(
+    () => ({ like: likeItems, hard: hardItems }),
+    [likeItems, hardItems],
+  )
+  const canStart = likeItems.length > 0 || hardItems.length > 0
 
-  const canInvert = likeItems.length > 0 || hardItems.length > 0
-  const canSelf = likeItems.length > 0 || hardItems.length > 0
+  const resetFlow = () => {
+    setQuestions(initialStage)
+    setAnswers({})
+    setReflections(initialStage)
+    setTakeaway(initialStage)
+    setStep('words')
+  }
+
+  const handleLikeChange = (v: string) => {
+    setLike(v)
+    resetFlow()
+  }
+
+  const handleHardChange = (v: string) => {
+    setHard(v)
+    resetFlow()
+  }
+
+  const handleSettingsSaved = (s: AISettings) => {
+    setSettings(s)
+    resetFlow()
+  }
 
   const scrollTo = (id: string) => {
     if (typeof window === 'undefined') return
@@ -75,95 +114,203 @@ function App() {
     })
   }
 
-  const runInvertAI = async () => {
-    if (!settings.apiKey) return
-    setInvertAI({ status: 'loading' })
+  const runQuestions = async () => {
+    if (questions.data) return
+    if (!settings.apiKey) {
+      setQuestions({
+        data: buildFallbackQuestions(poleItems),
+        source: 'fallback',
+        loading: false,
+        error: null,
+      })
+      return
+    }
+    setQuestions({ data: null, source: null, loading: true, error: null })
     try {
-      const [likeRes, hardRes] = await Promise.all([
-        hardItems.length > 0
-          ? generateInvertAI(settings.apiKey, settings.model, hardItems, 'like')
-          : Promise.resolve(undefined),
-        likeItems.length > 0
-          ? generateInvertAI(settings.apiKey, settings.model, likeItems, 'hard')
-          : Promise.resolve(undefined),
-      ])
-      setInvertAI({ status: 'ok', like: likeRes, hard: hardRes })
+      const data = await generateQuestionsAI(settings.apiKey, settings.model, poleItems)
+      setQuestions({ data, source: 'ai', loading: false, error: null })
     } catch (e) {
-      setInvertAI({
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+      const msg = e instanceof Error ? e.message : String(e)
+      setQuestions({
+        data: buildFallbackQuestions(poleItems),
+        source: 'fallback',
+        loading: false,
+        error: msg,
       })
     }
   }
 
-  const runSelfAI = async () => {
-    if (!settings.apiKey) return
-    setSelfAI({ status: 'loading' })
+  const buildAnswered = (q: QuestionsResponse): AnsweredItem[] =>
+    q.items.map((it) => {
+      const k = itemKey(it.pole, it.text)
+      const arr = answers[k] ?? []
+      return {
+        text: it.text,
+        pole: it.pole,
+        answers: it.questions.map((qq, qi) => ({
+          axis: qq.axis,
+          question: qq.question,
+          answer: arr[qi] ?? '',
+        })),
+      }
+    })
+
+  const runReflections = async (q: QuestionsResponse) => {
+    const answered = buildAnswered(q)
+    if (!settings.apiKey) {
+      setReflections({
+        data: buildFallbackReflections(answered),
+        source: 'fallback',
+        loading: false,
+        error: null,
+      })
+      return answered
+    }
+    setReflections({ data: null, source: null, loading: true, error: null })
     try {
-      const [likeRes, hardRes, takeaway] = await Promise.all([
-        likeItems.length > 0
-          ? generateSelfAI(settings.apiKey, settings.model, likeItems, 'like')
-          : Promise.resolve(undefined),
-        hardItems.length > 0
-          ? generateSelfAI(settings.apiKey, settings.model, hardItems, 'hard')
-          : Promise.resolve(undefined),
-        generateTakeawayAI(settings.apiKey, settings.model, likeItems, hardItems),
-      ])
-      setSelfAI({ status: 'ok', like: likeRes, hard: hardRes, takeaway })
+      const data = await generateReflectionAI(settings.apiKey, settings.model, answered)
+      setReflections({ data, source: 'ai', loading: false, error: null })
     } catch (e) {
-      setSelfAI({
-        status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+      const msg = e instanceof Error ? e.message : String(e)
+      setReflections({
+        data: buildFallbackReflections(answered),
+        source: 'fallback',
+        loading: false,
+        error: msg,
+      })
+    }
+    return answered
+  }
+
+  const runTakeaway = async (
+    answered: AnsweredItem[],
+    refs: ItemReflection[],
+  ) => {
+    if (!settings.apiKey) {
+      setTakeaway({
+        data: buildFallbackTakeaway(answered, refs),
+        source: 'fallback',
+        loading: false,
+        error: null,
+      })
+      return
+    }
+    setTakeaway({ data: null, source: null, loading: true, error: null })
+    try {
+      const data = await generateTakeawayAI(
+        settings.apiKey,
+        settings.model,
+        answered,
+        refs,
+      )
+      setTakeaway({ data, source: 'ai', loading: false, error: null })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setTakeaway({
+        data: buildFallbackTakeaway(answered, refs),
+        source: 'fallback',
+        loading: false,
+        error: msg,
       })
     }
   }
 
-  const handleInvert = () => {
-    if (!canInvert) return
-    setShowCard(true)
-    setCopied(false)
-    scrollTo('invert-card')
-    if (settings.apiKey && !invertAI) {
-      void runInvertAI()
+  const handleStart = () => {
+    if (!canStart) return
+    setStep('ask')
+    scrollTo('ask-card')
+    void runQuestions()
+  }
+
+  const handleAnswerChange = (key: string, qIndex: number, value: string) => {
+    setAnswers((prev) => {
+      const arr = [...(prev[key] ?? [])]
+      arr[qIndex] = value
+      return { ...prev, [key]: arr }
+    })
+    // user edited answers → invalidate downstream
+    if (reflections.data) setReflections(initialStage)
+    if (takeaway.data) setTakeaway(initialStage)
+  }
+
+  const handleProceedToSee = async () => {
+    if (!questions.data) return
+    setStep('see')
+    scrollTo('see-card')
+    setCopiedReflection(false)
+    if (!reflections.data) {
+      await runReflections(questions.data)
     }
   }
 
-  const handleSelf = () => {
-    if (!canSelf) return
-    setShowSelf(true)
-    setCopiedSelf(false)
-    scrollTo('self-card')
-    if (settings.apiKey && !selfAI) {
-      void runSelfAI()
+  const handleProceedToTake = async () => {
+    if (!questions.data || !reflections.data) return
+    setStep('take')
+    scrollTo('take-card')
+    setCopiedTakeaway(false)
+    if (!takeaway.data) {
+      const answered = buildAnswered(questions.data)
+      await runTakeaway(answered, reflections.data.items)
     }
   }
 
-  useEffect(() => {
-    setInvertAI(null)
-    setSelfAI(null)
-  }, [like, hard, settings.apiKey, settings.model])
+  const handleBackToWords = () => {
+    setStep('words')
+    scrollTo('input-heading')
+  }
 
-  const handleCopy = async () => {
+  const handleBackToAsk = () => {
+    setStep('ask')
+    scrollTo('ask-card')
+  }
+
+  const handleReset = () => {
+    setStep('words')
+    setQuestions(initialStage)
+    setAnswers({})
+    setReflections(initialStage)
+    setTakeaway(initialStage)
+    scrollTo('input-heading')
+  }
+
+  const buildReflectionCopy = (r: ReflectionResponse): string => {
+    const blocks = r.items.map((it) => {
+      const tone = it.pole === 'like' ? '💚' : '💔'
+      return `${tone} ${it.text}\n  ${it.reflection}\n  🔄 ${it.inversion}`
+    })
+    return `教えてくれたことから、見えてくること\n\n${blocks.join('\n\n')}`
+  }
+
+  const buildTakeawayCopy = (t: TakeawayData): string => {
+    const points = t.points
+      .map((p, i) => `${i + 1}. ${p.title}\n   ${p.body}`)
+      .join('\n\n')
+    return `今日の気付き\n\n${points}\n\n${t.personalNote}`
+  }
+
+  const handleCopyReflection = async () => {
+    if (!reflections.data) return
     try {
-      await navigator.clipboard.writeText(buildIntroText(likeItems, hardItems))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
+      await navigator.clipboard.writeText(buildReflectionCopy(reflections.data))
+      setCopiedReflection(true)
+      setTimeout(() => setCopiedReflection(false), 1800)
     } catch {
-      setCopied(false)
+      setCopiedReflection(false)
     }
   }
 
-  const handleCopySelf = async () => {
+  const handleCopyTakeaway = async () => {
+    if (!takeaway.data) return
     try {
-      await navigator.clipboard.writeText(buildSelfText(likeItems, hardItems))
-      setCopiedSelf(true)
-      setTimeout(() => setCopiedSelf(false), 1800)
+      await navigator.clipboard.writeText(buildTakeawayCopy(takeaway.data))
+      setCopiedTakeaway(true)
+      setTimeout(() => setCopiedTakeaway(false), 1800)
     } catch {
-      setCopiedSelf(false)
+      setCopiedTakeaway(false)
     }
   }
 
-  const reached = showSelf ? 4 : showCard ? 2 : 1
+  const stepNum = step === 'words' ? 1 : step === 'ask' ? 2 : step === 'see' ? 3 : 4
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/40 to-indigo-100/50">
@@ -171,10 +318,10 @@ function App() {
         <header className="mb-6 flex items-start justify-between gap-3">
           <div className="text-left">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
-              反転人間紹介アプリ
+              反転を見つける
             </h1>
             <p className="mt-2 text-sm text-slate-500 sm:text-base">
-              あなたが辛いと感じることを、好きだと感じる人間がどこかに実在する。
+              好きと辛いの間で、自分が今どこに立っているかを見にいく。
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -206,7 +353,7 @@ function App() {
           </div>
         </header>
 
-        <Stepper reached={reached} />
+        <Stepper reached={stepNum} />
 
         <section
           aria-labelledby="input-heading"
@@ -216,7 +363,7 @@ function App() {
             id="input-heading"
             className="mb-4 text-sm font-semibold text-slate-700 sm:text-base"
           >
-            1. あなたの好きと辛いを入力
+            ① ことば — 好きと辛いを書きだす
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -229,9 +376,9 @@ function App() {
               <textarea
                 id="like-input"
                 value={like}
-                onChange={(e) => setLike(e.target.value)}
+                onChange={(e) => handleLikeChange(e.target.value)}
                 placeholder={LIKE_PLACEHOLDER}
-                rows={7}
+                rows={6}
                 className="w-full resize-y rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-base text-slate-800 placeholder-emerald-300 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -248,9 +395,9 @@ function App() {
               <textarea
                 id="hard-input"
                 value={hard}
-                onChange={(e) => setHard(e.target.value)}
+                onChange={(e) => handleHardChange(e.target.value)}
                 placeholder={HARD_PLACEHOLDER}
-                rows={7}
+                rows={6}
                 className="w-full resize-y rounded-lg border border-rose-200 bg-rose-50/40 px-3 py-2 text-base text-slate-800 placeholder-rose-300 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200"
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -260,78 +407,130 @@ function App() {
           </div>
         </section>
 
-        <div className="mt-6 flex flex-col items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={handleInvert}
-            disabled={!canInvert}
-            className="rounded-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-emerald-500 px-8 py-3 text-base font-semibold text-white shadow-md transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            🔄 反転する
-          </button>
-          <p className="text-xs text-slate-500">まず反転人間と出会う</p>
-        </div>
+        {step === 'words' && (
+          <div className="mt-6 flex flex-col items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={!canStart}
+              className="rounded-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-rose-500 px-8 py-3 text-base font-semibold text-white shadow-md transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              🎙 きかれてみる
+            </button>
+            <p className="text-xs text-slate-500">
+              次のステップで、AIがあなたに少し質問します。
+            </p>
+          </div>
+        )}
 
-        {showCard && (
+        {step !== 'words' && questions.loading && (
+          <article className="mt-8 rounded-2xl border border-indigo-200 bg-white p-2 shadow-lg">
+            <AILoading label="あなたへの質問を組み立てています…" />
+          </article>
+        )}
+
+        {step !== 'words' && questions.data && (
           <>
-            <InvertCard
-              likeItems={likeItems}
-              hardItems={hardItems}
-              invertAI={invertAI}
-              onCopy={handleCopy}
-              onReset={() => setShowCard(false)}
-              onRetry={runInvertAI}
-              copied={copied}
-            />
+            {step === 'ask' && (
+              <>
+                {questions.error && (
+                  <div className="mt-6">
+                    <AIError
+                      message={questions.error}
+                      onRetry={() => {
+                        setQuestions(initialStage)
+                        void runQuestions()
+                      }}
+                    />
+                  </div>
+                )}
+                <QuestionSheet
+                  questions={questions.data}
+                  answers={answers}
+                  onAnswerChange={handleAnswerChange}
+                  onProceed={handleProceedToSee}
+                  onBack={handleBackToWords}
+                  proceedLabel="見にいく →"
+                  source={questions.source ?? 'fallback'}
+                />
+              </>
+            )}
 
-            {!showSelf && (
-              <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 sm:flex sm:items-center sm:justify-between sm:gap-4">
-                <div>
-                  <p className="text-xs font-medium text-indigo-600">
-                    ステップ3 · 自己分析
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-indigo-900 sm:text-base">
-                    では、あなた自身はなぜそう感じているのか？
-                  </p>
-                  <p className="mt-1 text-xs text-indigo-700/80">
-                    同じ軸で、自分の経緯を過去→積み重ね→現在の3段で紐解きます。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSelf}
-                  disabled={!canSelf}
-                  className="mt-3 w-full rounded-full border border-indigo-400 bg-white px-5 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 sm:mt-0 sm:w-auto"
-                >
-                  🔍 自分を紐解く →
-                </button>
-              </div>
+            {(step === 'see' || step === 'take') && reflections.loading && (
+              <article className="mt-8 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
+                <AILoading label="教えてくれたことから、反射を組み立てています…" />
+              </article>
+            )}
+
+            {step === 'see' && reflections.data && (
+              <>
+                {reflections.error && (
+                  <div className="mt-6">
+                    <AIError
+                      message={reflections.error}
+                      onRetry={() => {
+                        setReflections(initialStage)
+                        if (questions.data) void runReflections(questions.data)
+                      }}
+                    />
+                  </div>
+                )}
+                <ReflectionCard
+                  reflections={reflections.data}
+                  onCopy={handleCopyReflection}
+                  onProceed={handleProceedToTake}
+                  onBack={handleBackToAsk}
+                  copied={copiedReflection}
+                  source={reflections.source ?? 'fallback'}
+                />
+              </>
+            )}
+
+            {step === 'take' && reflections.data && (
+              <>
+                <ReflectionCard
+                  reflections={reflections.data}
+                  onCopy={handleCopyReflection}
+                  onProceed={handleProceedToTake}
+                  onBack={handleBackToAsk}
+                  copied={copiedReflection}
+                  source={reflections.source ?? 'fallback'}
+                />
+                {takeaway.loading && (
+                  <article className="mt-4 rounded-2xl border border-amber-200 bg-white p-2 shadow-lg">
+                    <AILoading label="気付きを組み立てています…" />
+                  </article>
+                )}
+                {takeaway.error && (
+                  <div className="mt-4">
+                    <AIError
+                      message={takeaway.error}
+                      onRetry={() => {
+                        setTakeaway(initialStage)
+                        if (questions.data && reflections.data) {
+                          const answered = buildAnswered(questions.data)
+                          void runTakeaway(answered, reflections.data.items)
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+                {takeaway.data && (
+                  <Takeaway
+                    takeaway={takeaway.data}
+                    onCopy={handleCopyTakeaway}
+                    onReset={handleReset}
+                    copied={copiedTakeaway}
+                    source={takeaway.source ?? 'fallback'}
+                  />
+                )}
+              </>
             )}
           </>
         )}
 
-        {showSelf && (
-          <>
-            <SelfCard
-              likeItems={likeItems}
-              hardItems={hardItems}
-              selfAI={selfAI}
-              onCopy={handleCopySelf}
-              onClose={() => setShowSelf(false)}
-              onRetry={runSelfAI}
-              copied={copiedSelf}
-            />
-
-            <Takeaway
-              likeItems={likeItems}
-              hardItems={hardItems}
-              ai={selfAI?.status === 'ok' ? selfAI.takeaway : undefined}
-            />
-          </>
-        )}
-
         <footer className="mt-12 text-center text-xs text-slate-400">
-          同じ行為でも、名前の付け方で意味は反転する。
+          反転は別人の話ではなく、同じ軸の別の位置にいる、あなた自身。
         </footer>
       </div>
 
@@ -341,7 +540,7 @@ function App() {
       {showSettings && (
         <SettingsDrawer
           onClose={() => setShowSettings(false)}
-          onSaved={(s) => setSettings(s)}
+          onSaved={handleSettingsSaved}
         />
       )}
     </div>

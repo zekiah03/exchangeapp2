@@ -1,8 +1,8 @@
 const STEPS = [
-  { key: 'input', label: '入力' },
-  { key: 'insight', label: '気付き' },
-  { key: 'self', label: '自己分析' },
-  { key: 'accept', label: '納得' },
+  { key: 'words', label: 'ことば' },
+  { key: 'ask', label: 'きく' },
+  { key: 'see', label: '見る' },
+  { key: 'take', label: '持ち帰る' },
 ] as const
 
 export function Stepper({ reached }: { reached: number }) {
