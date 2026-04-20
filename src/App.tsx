@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react'
 import './App.css'
 import { StructureAnalysis } from './StructureAnalysis'
+import {
+  formatNarrativeAsText,
+  generateNarrative,
+  type Narrative,
+  type Pole,
+} from './generateNarrative'
 
 type TabKey = 'like' | 'hard' | 'analysis'
 
@@ -32,14 +38,17 @@ function App() {
   const canInvert = likeItems.length > 0 || hardItems.length > 0
 
   const introText = useMemo(() => {
-    const likeBlock =
-      hardItems.length > 0
-        ? hardItems.map((s) => `・${s}`).join('\n')
-        : '（未入力）'
-    const hardBlock =
-      likeItems.length > 0
-        ? likeItems.map((s) => `・${s}`).join('\n')
-        : '（未入力）'
+    const renderBlock = (items: string[], pole: Pole) => {
+      if (items.length === 0) return '（未入力）'
+      return items
+        .map((s) => {
+          const n = generateNarrative(s, pole)
+          return `・${s}\n${formatNarrativeAsText(n)}`
+        })
+        .join('\n\n')
+    }
+    const likeBlock = renderBlock(hardItems, 'like')
+    const hardBlock = renderBlock(likeItems, 'hard')
     return `こんな人間がいます\n\n💚 好きなこと\n${likeBlock}\n\n💔 やってて辛いこと\n${hardBlock}`
   }, [likeItems, hardItems])
 
@@ -191,15 +200,20 @@ function App() {
             <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
               <InvertBlock
                 tone="like"
+                pole="like"
                 title="💚 好きなこと"
                 items={hardItems}
               />
               <InvertBlock
                 tone="hard"
+                pole="hard"
                 title="💔 やってて辛いこと"
                 items={likeItems}
               />
             </div>
+            <p className="px-5 pb-2 text-center text-xs text-slate-500 sm:px-6">
+              各項目の下に、構造分析の8軸×4層から推定した「経緯」を表示しています。
+            </p>
             <footer className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -277,10 +291,12 @@ function Panel({
 
 function InvertBlock({
   tone,
+  pole,
   title,
   items,
 }: {
   tone: 'like' | 'hard'
+  pole: Pole
   title: string
   items: string[]
 }) {
@@ -290,19 +306,62 @@ function InvertBlock({
       : 'border-rose-200 bg-rose-50/60 text-rose-900'
   return (
     <div className={`rounded-xl border p-4 ${palette}`}>
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
+      <h3 className="mb-3 text-sm font-semibold">{title}</h3>
       {items.length > 0 ? (
-        <ul className="space-y-1.5 text-sm leading-relaxed">
+        <ul className="space-y-3 text-sm leading-relaxed">
           {items.map((item, i) => (
-            <li key={i} className="flex gap-2">
-              <span aria-hidden="true">・</span>
-              <span>{item}</span>
+            <li key={i}>
+              <div className="flex gap-2 font-medium">
+                <span aria-hidden="true">・</span>
+                <span>{item}</span>
+              </div>
+              <NarrativeBlock
+                narrative={generateNarrative(item, pole)}
+                tone={tone}
+              />
             </li>
           ))}
         </ul>
       ) : (
         <p className="text-sm italic opacity-60">（未入力）</p>
       )}
+    </div>
+  )
+}
+
+function NarrativeBlock({
+  narrative,
+  tone,
+}: {
+  narrative: Narrative
+  tone: 'like' | 'hard'
+}) {
+  const bg = tone === 'like' ? 'bg-white/70' : 'bg-white/70'
+  return (
+    <div
+      className={`mt-2 ml-4 rounded-lg border border-slate-200 ${bg} p-3 text-xs leading-relaxed text-slate-700 sm:text-sm`}
+    >
+      <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
+          {narrative.layer.label}
+        </span>
+        <span className="text-[11px] text-indigo-700">
+          {narrative.layer.title}
+        </span>
+      </div>
+      <p className="mb-2 text-slate-600">{narrative.layer.shift}</p>
+      <ul className="space-y-1">
+        {narrative.axes.map((a) => (
+          <li key={a.key} className="flex gap-2">
+            <span aria-hidden="true">{a.icon}</span>
+            <span>
+              <span className="font-medium text-slate-800">{a.label}</span>
+              <span className="mx-1 text-slate-400">·</span>
+              <span>{a.narrative}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
