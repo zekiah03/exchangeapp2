@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { StructureAnalysis } from './StructureAnalysis'
 import {
@@ -11,8 +11,6 @@ import {
   type Story,
 } from './generateNarrative'
 
-type TabKey = 'like' | 'hard' | 'analysis'
-
 const LIKE_PLACEHOLDER = `絵を描くこと
 細かい仕様書を読むこと
 長距離を走ること`
@@ -20,6 +18,13 @@ const LIKE_PLACEHOLDER = `絵を描くこと
 const HARD_PLACEHOLDER = `人前で話すこと
 同じ作業の繰り返し
 数字を扱うこと`
+
+const STEPS = [
+  { key: 'input', label: '入力' },
+  { key: 'insight', label: '気付き' },
+  { key: 'self', label: '自己分析' },
+  { key: 'accept', label: '納得' },
+] as const
 
 function splitLines(text: string): string[] {
   return text
@@ -29,13 +34,13 @@ function splitLines(text: string): string[] {
 }
 
 function App() {
-  const [tab, setTab] = useState<TabKey>('like')
   const [like, setLike] = useState('')
   const [hard, setHard] = useState('')
   const [showCard, setShowCard] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showSelf, setShowSelf] = useState(false)
   const [copiedSelf, setCopiedSelf] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(false)
 
   const likeItems = useMemo(() => splitLines(like), [like])
   const hardItems = useMemo(() => splitLines(hard), [hard])
@@ -124,102 +129,83 @@ function App() {
     setShowSelf(false)
   }
 
+  const reached = showSelf ? 4 : showCard ? 2 : 1
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/40 to-indigo-100/50">
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <header className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
-            反転人間紹介アプリ
-          </h1>
-          <p className="mt-2 text-sm text-slate-500 sm:text-base">
-            あなたが辛いと感じることを、好きだと感じる人間がどこかに実在する。
-          </p>
-        </header>
-
-        <nav
-          role="tablist"
-          aria-label="入力タブ"
-          className="flex gap-1 rounded-xl border border-slate-200 bg-white/70 p-1 shadow-sm backdrop-blur"
-        >
-          <TabButton
-            active={tab === 'like'}
-            onClick={() => setTab('like')}
-            activeClass="bg-emerald-100 text-emerald-800 shadow-sm"
-            id="tab-like"
-            controls="panel-like"
-          >
-            💚 好きなこと
-          </TabButton>
-          <TabButton
-            active={tab === 'hard'}
-            onClick={() => setTab('hard')}
-            activeClass="bg-rose-100 text-rose-800 shadow-sm"
-            id="tab-hard"
-            controls="panel-hard"
-          >
-            💔 辛いこと
-          </TabButton>
-          <TabButton
-            active={tab === 'analysis'}
-            onClick={() => setTab('analysis')}
-            activeClass="bg-indigo-100 text-indigo-800 shadow-sm"
-            id="tab-analysis"
-            controls="panel-analysis"
+        <header className="mb-6 flex items-start justify-between gap-3">
+          <div className="text-left">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
+              反転人間紹介アプリ
+            </h1>
+            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+              あなたが辛いと感じることを、好きだと感じる人間がどこかに実在する。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAnalysis(true)}
+            className="shrink-0 whitespace-nowrap rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-medium text-indigo-700 shadow-sm transition hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 sm:text-sm"
+            aria-haspopup="dialog"
+            aria-expanded={showAnalysis}
           >
             📐 構造分析
-          </TabButton>
-        </nav>
+          </button>
+        </header>
 
-        <section className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur sm:p-6">
-          {tab === 'like' && (
-            <Panel id="panel-like" labelledBy="tab-like">
+        <Stepper reached={reached} />
+
+        <section
+          aria-labelledby="input-heading"
+          className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur sm:p-6"
+        >
+          <h2
+            id="input-heading"
+            className="mb-4 text-sm font-semibold text-slate-700 sm:text-base"
+          >
+            1. あなたの好きと辛いを入力
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
               <label
                 htmlFor="like-input"
                 className="mb-2 block text-sm font-medium text-emerald-800"
               >
-                あなたの好きなこと（1行1項目）
+                💚 好きなこと
               </label>
               <textarea
                 id="like-input"
                 value={like}
                 onChange={(e) => setLike(e.target.value)}
                 placeholder={LIKE_PLACEHOLDER}
-                rows={8}
+                rows={7}
                 className="w-full resize-y rounded-lg border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-base text-slate-800 placeholder-emerald-300 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
               />
-              <p className="mt-2 text-xs text-slate-500">
-                {likeItems.length} 項目
+              <p className="mt-1 text-xs text-slate-500">
+                {likeItems.length} 項目 · 1行1つ
               </p>
-            </Panel>
-          )}
-
-          {tab === 'hard' && (
-            <Panel id="panel-hard" labelledBy="tab-hard">
+            </div>
+            <div>
               <label
                 htmlFor="hard-input"
                 className="mb-2 block text-sm font-medium text-rose-800"
               >
-                やってて辛いこと（1行1項目）
+                💔 やってて辛いこと
               </label>
               <textarea
                 id="hard-input"
                 value={hard}
                 onChange={(e) => setHard(e.target.value)}
                 placeholder={HARD_PLACEHOLDER}
-                rows={8}
+                rows={7}
                 className="w-full resize-y rounded-lg border border-rose-200 bg-rose-50/40 px-3 py-2 text-base text-slate-800 placeholder-rose-300 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-200"
               />
-              <p className="mt-2 text-xs text-slate-500">
-                {hardItems.length} 項目
+              <p className="mt-1 text-xs text-slate-500">
+                {hardItems.length} 項目 · 1行1つ
               </p>
-            </Panel>
-          )}
-
-          {tab === 'analysis' && (
-            <Panel id="panel-analysis" labelledBy="tab-analysis">
-              <StructureAnalysis />
-            </Panel>
-          )}
+            </div>
+          </div>
         </section>
 
         <div className="mt-6 flex flex-col items-center justify-center gap-2">
@@ -232,7 +218,7 @@ function App() {
             🔄 反転する
           </button>
           <p className="text-xs text-slate-500">
-            ステップ1 / 3 · まずは反転人間と出会う
+            まず反転人間と出会う
           </p>
         </div>
 
@@ -244,7 +230,7 @@ function App() {
             >
               <header className="border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-rose-50 px-5 py-4">
                 <p className="text-center text-xs font-medium text-slate-500">
-                  ステップ1 · 気付き
+                  ステップ2 · 気付き
                 </p>
                 <h2 className="mt-0.5 text-center text-lg font-semibold text-slate-800">
                   こんな人間がいます
@@ -289,7 +275,7 @@ function App() {
               <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 sm:flex sm:items-center sm:justify-between sm:gap-4">
                 <div>
                   <p className="text-xs font-medium text-indigo-600">
-                    ステップ2 / 3 · 自己分析
+                    ステップ3 · 自己分析
                   </p>
                   <p className="mt-1 text-sm font-medium text-indigo-900 sm:text-base">
                     では、あなた自身はなぜそう感じているのか？
@@ -319,7 +305,7 @@ function App() {
             >
               <header className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-indigo-50 px-5 py-4">
                 <p className="text-center text-xs font-medium text-indigo-600">
-                  ステップ2 · 自己分析
+                  ステップ3 · 自己分析
                 </p>
                 <h2 className="mt-0.5 text-center text-lg font-semibold text-indigo-900">
                   あなたはなぜそう感じているか
@@ -368,54 +354,112 @@ function App() {
           同じ行為でも、名前の付け方で意味は反転する。
         </footer>
       </div>
+
+      {showAnalysis && (
+        <AnalysisDrawer onClose={() => setShowAnalysis(false)} />
+      )}
     </div>
   )
 }
 
-function TabButton({
-  active,
-  onClick,
-  activeClass,
-  children,
-  id,
-  controls,
-}: {
-  active: boolean
-  onClick: () => void
-  activeClass: string
-  children: React.ReactNode
-  id: string
-  controls: string
-}) {
+function Stepper({ reached }: { reached: number }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      id={id}
-      aria-controls={controls}
-      aria-selected={active}
-      onClick={onClick}
-      className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition sm:text-base ${
-        active ? activeClass : 'text-slate-600 hover:bg-slate-100'
-      }`}
+    <ol
+      aria-label="進捗"
+      className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-3 shadow-sm backdrop-blur"
     >
-      {children}
-    </button>
+      {STEPS.map((step, i) => {
+        const num = i + 1
+        const state =
+          num < reached ? 'done' : num === reached ? 'active' : 'pending'
+        return (
+          <li
+            key={step.key}
+            className="flex flex-1 items-center gap-2"
+            aria-current={state === 'active' ? 'step' : undefined}
+          >
+            <div className="flex flex-1 items-center gap-2">
+              <span
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-1 transition ${
+                  state === 'done'
+                    ? 'bg-indigo-600 text-white ring-indigo-600'
+                    : state === 'active'
+                      ? 'bg-white text-indigo-700 ring-indigo-500'
+                      : 'bg-slate-50 text-slate-400 ring-slate-300'
+                }`}
+                aria-hidden="true"
+              >
+                {state === 'done' ? '✓' : num}
+              </span>
+              <span
+                className={`text-xs font-medium sm:text-sm ${
+                  state === 'pending' ? 'text-slate-400' : 'text-slate-700'
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <span
+                className={`hidden h-px flex-1 sm:block ${
+                  num < reached ? 'bg-indigo-400' : 'bg-slate-200'
+                }`}
+                aria-hidden="true"
+              />
+            )}
+          </li>
+        )
+      })}
+    </ol>
   )
 }
 
-function Panel({
-  id,
-  labelledBy,
-  children,
-}: {
-  id: string
-  labelledBy: string
-  children: React.ReactNode
-}) {
+function AnalysisDrawer({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [onClose])
+
   return (
-    <div role="tabpanel" id={id} aria-labelledby={labelledBy}>
-      {children}
+    <div
+      className="fixed inset-0 z-50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="analysis-title"
+    >
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside className="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <h2
+            id="analysis-title"
+            className="text-base font-semibold text-indigo-900 sm:text-lg"
+          >
+            📐 構造分析
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          >
+            閉じる
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          <StructureAnalysis />
+        </div>
+      </aside>
     </div>
   )
 }
@@ -591,7 +635,7 @@ function Takeaway({
     >
       <header className="border-b border-amber-100 px-5 py-4">
         <p className="text-center text-xs font-medium text-amber-700">
-          ステップ3 · 納得
+          ステップ4 · 納得
         </p>
         <h2 className="mt-0.5 text-center text-lg font-semibold text-slate-800">
           🪞 ここまでの気づき
