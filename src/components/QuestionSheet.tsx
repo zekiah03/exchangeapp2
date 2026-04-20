@@ -19,7 +19,8 @@ export function QuestionSheet({
   source: 'ai' | 'fallback'
 }) {
   const totalAnswered = Object.values(answers).reduce(
-    (n, arr) => n + arr.filter((s) => s.trim().length > 0).length,
+    (n, arr) =>
+      n + arr.filter((s) => typeof s === 'string' && s.trim().length > 0).length,
     0,
   )
   return (

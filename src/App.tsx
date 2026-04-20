@@ -50,12 +50,20 @@ type Stage<T> = {
   error: string | null
 }
 
-const initialStage = <T,>(): Stage<T> => ({
+const EMPTY_STAGE = Object.freeze({
   data: null,
   source: null,
   loading: false,
   error: null,
-})
+}) as Stage<never>
+
+function freshStage<T>(): Stage<T> {
+  return EMPTY_STAGE as Stage<T>
+}
+
+function isEmpty<T>(s: Stage<T>): boolean {
+  return s.data === null && !s.loading && s.source === null && s.error === null
+}
 
 function App() {
   const [like, setLike] = useState('')
@@ -64,10 +72,10 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<AISettings>(() => loadSettings())
 
-  const [questions, setQuestions] = useState<Stage<QuestionsResponse>>(initialStage)
+  const [questions, setQuestions] = useState<Stage<QuestionsResponse>>(freshStage)
   const [answers, setAnswers] = useState<AnswersByItem>({})
-  const [reflections, setReflections] = useState<Stage<ReflectionResponse>>(initialStage)
-  const [takeaway, setTakeaway] = useState<Stage<TakeawayData>>(initialStage)
+  const [reflections, setReflections] = useState<Stage<ReflectionResponse>>(freshStage)
+  const [takeaway, setTakeaway] = useState<Stage<TakeawayData>>(freshStage)
 
   const [copiedReflection, setCopiedReflection] = useState(false)
   const [copiedTakeaway, setCopiedTakeaway] = useState(false)
@@ -81,10 +89,13 @@ function App() {
   const canStart = likeItems.length > 0 || hardItems.length > 0
 
   const resetFlow = () => {
-    setQuestions(initialStage)
+    if (isEmpty(questions) && isEmpty(reflections) && isEmpty(takeaway) && step === 'words') {
+      return
+    }
+    setQuestions(freshStage())
     setAnswers({})
-    setReflections(initialStage)
-    setTakeaway(initialStage)
+    setReflections(freshStage())
+    setTakeaway(freshStage())
     setStep('words')
   }
 
@@ -227,8 +238,8 @@ function App() {
       return { ...prev, [key]: arr }
     })
     // user edited answers → invalidate downstream
-    if (reflections.data) setReflections(initialStage)
-    if (takeaway.data) setTakeaway(initialStage)
+    if (reflections.data) setReflections(freshStage())
+    if (takeaway.data) setTakeaway(freshStage())
   }
 
   const handleProceedToSee = async () => {
@@ -264,10 +275,10 @@ function App() {
 
   const handleReset = () => {
     setStep('words')
-    setQuestions(initialStage)
+    setQuestions(freshStage())
     setAnswers({})
-    setReflections(initialStage)
-    setTakeaway(initialStage)
+    setReflections(freshStage())
+    setTakeaway(freshStage())
     scrollTo('input-heading')
   }
 
@@ -425,7 +436,7 @@ function App() {
                     <AIError
                       message={questions.error}
                       onRetry={() => {
-                        setQuestions(initialStage)
+                        setQuestions(freshStage())
                         void runQuestions()
                       }}
                     />
@@ -456,7 +467,7 @@ function App() {
                     <AIError
                       message={reflections.error}
                       onRetry={() => {
-                        setReflections(initialStage)
+                        setReflections(freshStage())
                         if (questions.data) void runReflections(questions.data)
                       }}
                     />
@@ -493,7 +504,7 @@ function App() {
                     <AIError
                       message={takeaway.error}
                       onRetry={() => {
-                        setTakeaway(initialStage)
+                        setTakeaway(freshStage())
                         if (questions.data && reflections.data) {
                           const answered = buildAnswered(questions.data)
                           void runTakeaway(answered, reflections.data.items)
