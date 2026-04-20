@@ -156,6 +156,15 @@ function pickIndices(seed: number, poolSize: number, count: number): number[] {
   return picked
 }
 
+export const LAYER_INFO: Record<LayerKey, { label: string; title: string }> =
+  Object.fromEntries(
+    LAYERS.map((l) => [l.key, { label: l.label, title: l.title }]),
+  ) as Record<LayerKey, { label: string; title: string }>
+
+export const AXIS_ICON: Record<string, string> = Object.fromEntries(
+  AXES.map((a) => [a.label, a.icon]),
+)
+
 export type Narrative = {
   layer: {
     key: LayerKey
