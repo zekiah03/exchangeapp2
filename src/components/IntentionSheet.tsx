@@ -51,7 +51,7 @@ export function IntentionSheet({
       id="take-card"
       className="mt-8 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-lg"
     >
-      <header className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-white to-emerald-50 px-5 py-4">
+      <header className="border-b border-amber-100 bg-gradient-to-r from-amber-50 via-white to-amber-50 px-5 py-4">
         <p className="text-center text-xs font-medium text-amber-700">
           ステップ4 · 持ち帰る
         </p>

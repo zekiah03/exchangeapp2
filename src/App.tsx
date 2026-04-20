@@ -35,6 +35,8 @@ import {
   IntentionSheet,
   type IntentionsByItem,
 } from './components/IntentionSheet'
+import { Logo } from './Logo'
+import { Intro } from './components/Intro'
 
 type Step = 'words' | 'ask' | 'see' | 'take'
 type Source = 'ai' | 'fallback'
@@ -421,24 +423,28 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/40 to-indigo-100/50">
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
-        <header className="mb-6 flex items-start justify-between gap-3">
-          <div className="text-left">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-800 sm:text-3xl">
-              反転を見つける
-            </h1>
-            <p className="mt-2 text-sm text-slate-500 sm:text-base">
-              好きと辛いの間で、自分が今どこに立っているかを見にいく。
-            </p>
+        <header className="mb-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Logo size={40} />
+            <div className="text-left">
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+                反転
+              </h1>
+              <p className="text-xs text-slate-500 sm:text-sm">
+                自分の中の別の位置を見にいく
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => setShowSettings(true)}
-            className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:text-sm"
+            className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 sm:text-sm"
             aria-haspopup="dialog"
             aria-expanded={showSettings}
             title={settings.apiKey ? 'AIキー設定済み' : 'AIキー未設定（テンプレート生成）'}
           >
-            ⚙️ 設定
+            <span aria-hidden="true">⚙️</span>
+            <span className="ml-1">設定</span>
             {settings.apiKey && (
               <span
                 aria-hidden="true"
@@ -447,6 +453,8 @@ function App() {
             )}
           </button>
         </header>
+
+        {step === 'words' && <Intro />}
 
         <Stepper reached={stepNum} />
 
@@ -513,7 +521,9 @@ function App() {
               🎙 きかれてみる
             </button>
             <p className="text-xs text-slate-500">
-              次のステップで、AIがあなたに少し質問します。
+              {canStart
+                ? '次のステップで、AIが選択肢つきの質問を返してきます。'
+                : 'まず「好き」か「辛い」のどちらかに1行でも書くと進めます。'}
             </p>
           </div>
         )}
@@ -635,8 +645,9 @@ function App() {
           </>
         )}
 
-        <footer className="mt-12 text-center text-xs text-slate-400">
-          反転は別人の話ではなく、同じ軸の別の位置にいる、あなた自身。
+        <footer className="mt-12 flex flex-col items-center gap-2 text-center text-xs text-slate-400">
+          <Logo size={20} />
+          <p>反転は別人の話ではなく、同じ軸の別の位置にいる、あなた自身。</p>
         </footer>
       </div>
 
