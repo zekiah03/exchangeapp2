@@ -1,6 +1,6 @@
 import type { Axis, AxisSide, ReflectionResponse } from '../aiClient'
 import { AXIS_ICON, AXIS_LABEL, AXIS_SIDE_LABEL } from '../fallback'
-import { StructureAnalysis } from '../StructureAnalysis'
+import { StructureAnalysis, type AxisMarker } from '../StructureAnalysis'
 
 function sideText(axis: Axis, side: AxisSide): string {
   if (side === 'middle') return '中間'
@@ -11,12 +11,6 @@ function sideGlyph(side: AxisSide): string {
   if (side === 'left') return '◀'
   if (side === 'right') return '▶'
   return '─'
-}
-
-function sideTone(side: AxisSide): string {
-  if (side === 'left') return 'bg-rose-100 text-rose-800 border-rose-200'
-  if (side === 'right') return 'bg-emerald-100 text-emerald-800 border-emerald-200'
-  return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
 export function ReflectionCard({
@@ -71,9 +65,7 @@ export function ReflectionCard({
                 <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-800">
                   {AXIS_ICON[it.keyAxis]} {AXIS_LABEL[it.keyAxis]}
                 </span>
-                <span
-                  className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${sideTone(it.axisSide)}`}
-                >
+                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                   {sideGlyph(it.axisSide)} {sideText(it.keyAxis, it.axisSide)}側
                 </span>
               </div>
@@ -101,14 +93,14 @@ export function ReflectionCard({
             </p>
           </header>
           <StructureAnalysis
-            positions={reflections.items.reduce<Partial<Record<Axis, AxisSide>>>(
-              (acc, it) => {
-                // last writer wins — if multiple items land on same axis, use the latest
-                acc[it.keyAxis] = it.axisSide
-                return acc
-              },
-              {},
-            )}
+            markers={reflections.items.reduce<
+              Partial<Record<Axis, AxisMarker[]>>
+            >((acc, it) => {
+              const arr = acc[it.keyAxis] ?? []
+              arr.push({ pole: it.pole, side: it.axisSide })
+              acc[it.keyAxis] = arr
+              return acc
+            }, {})}
           />
         </section>
       </div>

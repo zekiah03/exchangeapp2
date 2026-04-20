@@ -1,5 +1,5 @@
 import { AXIS_ICON, AXIS_LABEL } from './fallback'
-import type { Axis, AxisSide } from './aiClient'
+import type { Axis, AxisSide, Pole } from './aiClient'
 
 const AXES: { key: Axis; description: string; left: string; right: string }[] = [
   {
@@ -55,48 +55,82 @@ const PRINCIPLES: { title: string; body: string }[] = [
   },
 ]
 
-function AxisBar({ side }: { side: AxisSide | undefined }) {
-  const dotLeft =
-    side === 'left' ? '5%' : side === 'right' ? '95%' : side === 'middle' ? '50%' : null
+export type AxisMarker = { pole: Pole; side: AxisSide }
+
+function sideToPercent(side: AxisSide): number {
+  if (side === 'left') return 8
+  if (side === 'right') return 92
+  return 50
+}
+
+function markerColor(pole: Pole): string {
+  // 好き(like) = emerald, 辛い(hard) = rose
+  return pole === 'like' ? 'bg-emerald-500' : 'bg-rose-500'
+}
+
+function markerLabel(pole: Pole): string {
+  return pole === 'like' ? '💚' : '💔'
+}
+
+function AxisBar({ markers }: { markers: AxisMarker[] | undefined }) {
+  const list = markers ?? []
   return (
-    <div className="relative mt-2 h-6">
+    <div className="relative mt-2 h-7">
       <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-rose-200 via-slate-200 to-emerald-200" />
       <div className="absolute inset-y-0 left-0 flex items-center">
-        <span className="h-2 w-2 rounded-full bg-rose-400" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-rose-300" aria-hidden="true" />
       </div>
       <div className="absolute inset-y-0 right-0 flex items-center">
-        <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
+        <span
+          className="h-2 w-2 rounded-full bg-emerald-300"
+          aria-hidden="true"
+        />
       </div>
-      {dotLeft !== null && (
-        <div
-          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ left: dotLeft }}
-          aria-label={`あなたの位置: ${side}`}
-        >
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[11px] font-bold text-white shadow ring-2 ring-white">
-            ★
-          </span>
-        </div>
-      )}
+      {list.map((m, i) => {
+        // stack markers vertically if they overlap on the same side
+        const sameSideBefore = list
+          .slice(0, i)
+          .filter((x) => x.side === m.side).length
+        const yOffset = sameSideBefore * 10 // px
+        return (
+          <div
+            key={i}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{
+              left: `${sideToPercent(m.side)}%`,
+              top: `calc(50% - ${yOffset}px)`,
+            }}
+            aria-label={`${m.pole === 'like' ? '好き' : '辛い'} の位置: ${m.side}`}
+          >
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-white shadow ring-2 ring-white ${markerColor(m.pole)}`}
+            >
+              {markerLabel(m.pole)}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export function StructureAnalysis({
-  positions,
+  markers,
 }: {
-  positions?: Partial<Record<Axis, AxisSide>>
+  markers?: Partial<Record<Axis, AxisMarker[]>>
 } = {}) {
-  const hasPositions = positions ? Object.keys(positions).length > 0 : false
+  const hasMarkers =
+    markers &&
+    Object.values(markers).some((arr) => (arr?.length ?? 0) > 0)
   return (
     <div className="space-y-6 text-sm leading-relaxed text-slate-700 sm:text-base">
       <section>
         <h2 className="mb-2 text-sm font-semibold text-indigo-800 sm:text-base">
           6つの軸
         </h2>
-        {hasPositions ? (
+        {hasMarkers ? (
           <p className="mb-3 text-xs text-slate-600 sm:text-sm">
-            ★ が、いまあなたが立っている位置です。印がない軸は今回聞いていません。
+            💚 が「好き」項目の位置、💔 が「辛い」項目の位置です。印がない軸は今回聞いていません。
           </p>
         ) : (
           <p className="mb-3 text-xs text-slate-600 sm:text-sm">
@@ -105,14 +139,14 @@ export function StructureAnalysis({
         )}
         <ul className="space-y-3">
           {AXES.map((a) => {
-            const side = positions?.[a.key]
-            const isHi = side !== undefined
+            const mk = markers?.[a.key]
+            const isHi = mk && mk.length > 0
             return (
               <li
                 key={a.key}
                 className={`rounded-xl border p-3 transition ${
                   isHi
-                    ? 'border-amber-300 bg-amber-50/70 shadow-sm ring-1 ring-amber-200'
+                    ? 'border-indigo-300 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-200'
                     : 'border-slate-200 bg-white'
                 }`}
               >
@@ -120,7 +154,7 @@ export function StructureAnalysis({
                   <span
                     className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
                       isHi
-                        ? 'bg-amber-500 text-white'
+                        ? 'bg-indigo-600 text-white'
                         : 'bg-indigo-100 text-indigo-800'
                     }`}
                   >
@@ -129,14 +163,14 @@ export function StructureAnalysis({
                   <span className="text-xs text-slate-500">{a.description}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex shrink-0 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+                  <span className="inline-flex shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
                     {a.left}
                   </span>
-                  <span className="inline-flex shrink-0 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  <span className="inline-flex shrink-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
                     {a.right}
                   </span>
                 </div>
-                <AxisBar side={side} />
+                <AxisBar markers={mk} />
               </li>
             )
           })}
