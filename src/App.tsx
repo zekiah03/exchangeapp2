@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import './App.css'
 import { SettingsDrawer } from './SettingsDrawer'
 import { loadSettings, type AISettings } from './aiSettings'
@@ -37,6 +37,7 @@ import {
 } from './components/IntentionSheet'
 import { Logo } from './Logo'
 import { Intro } from './components/Intro'
+import { TwinContributor } from './TwinContributor'
 
 type Step = 'words' | 'ask' | 'see' | 'take'
 type Source = 'ai' | 'fallback'
@@ -160,7 +161,6 @@ function App() {
     }
     setQuestions({ data: null, source: null, loading: true, error: null })
     try {
-      // 好き・辛いを独立した API 呼び出しで生成し、両極の分析が LLM コンテキスト上で混ざらないようにする
       const [likeRes, hardRes] = await Promise.all([
         likeItems.length > 0
           ? generateQuestionsAI(settings.apiKey, settings.model, likeItems, 'like')
@@ -449,6 +449,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-indigo-50/40 to-indigo-100/50">
+      <TwinContributor
+        likeItems={likeItems}
+        hardItems={hardItems}
+        takeawayReady={!!takeaway.data}
+      />
       <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <header className="mb-6 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -545,7 +550,7 @@ function App() {
               disabled={!canStart}
               className="rounded-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-rose-500 px-8 py-3 text-base font-semibold text-white shadow-md transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              🎙 きかれてみる
+              🎤 きかれてみる
             </button>
             <p className="text-xs text-slate-500">
               {canStart
