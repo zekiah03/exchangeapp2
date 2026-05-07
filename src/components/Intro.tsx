@@ -80,6 +80,10 @@ export function Intro() {
                 <span className="text-slate-600">{s.body}</span>
               </li>
             ))}
+            <li className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-slate-700">
+              📐 目標は全軸を「内発・報酬側」に寄せることではありません。
+              動かしたい1つの軸を、半歩動かすだけで十分です。
+            </li>
             <li className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               💡 APIキー未設定でもテンプレートで体験できます。
               キーを入れると、質問と気付きがあなたの回答に合わせた文面になります。

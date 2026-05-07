@@ -1,7 +1,13 @@
-import type { Takeaway as TakeawayData, TakeawayPerItem } from '../aiClient'
+import type {
+  ReflectionResponse,
+  Takeaway as TakeawayData,
+  TakeawayPerItem,
+} from '../aiClient'
+import { AXIS_LABEL, AXIS_SIDE_LABEL } from '../fallback'
 
 export function Takeaway({
   takeaway,
+  reflections,
   onCopy,
   onReset,
   onBack,
@@ -9,6 +15,7 @@ export function Takeaway({
   source,
 }: {
   takeaway: TakeawayData
+  reflections: ReflectionResponse
   onCopy: () => void
   onReset: () => void
   onBack?: () => void
@@ -17,6 +24,14 @@ export function Takeaway({
 }) {
   const likePerItem = takeaway.perItem?.filter((p) => p.pole === 'like') ?? []
   const hardPerItem = takeaway.perItem?.filter((p) => p.pole === 'hard') ?? []
+
+  // Pattern-break detection (理論§5.4 予測3): pole and axisSide don't align.
+  // 好き なのに 外発・消耗側 (left) / 辛い なのに 内発・報酬側 (right)
+  const discoveries = reflections.items.filter(
+    (it) =>
+      (it.pole === 'like' && it.axisSide === 'left') ||
+      (it.pole === 'hard' && it.axisSide === 'right'),
+  )
   return (
     <article
       id="take-card"
@@ -31,6 +46,10 @@ export function Takeaway({
         </h2>
       </header>
       <div className="space-y-5 px-5 py-5 text-sm leading-relaxed text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+        {discoveries.length > 0 && (
+          <DiscoveriesBlock items={discoveries} />
+        )}
+
         {(likePerItem.length > 0 || hardPerItem.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2">
             {likePerItem.length > 0 && (
@@ -112,6 +131,47 @@ function TakePoint({
         <p className="font-semibold text-slate-800">{title}</p>
         <p className="mt-0.5 text-slate-700">{body}</p>
       </div>
+    </div>
+  )
+}
+
+function DiscoveriesBlock({
+  items,
+}: {
+  items: ReflectionResponse['items']
+}) {
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-indigo-700">
+        ⚡ 発見 — pole と軸位置のズレ
+      </p>
+      <p className="mb-3 text-xs text-slate-600 sm:text-sm">
+        「好きなのに外発・消耗側」「辛いのに内発・報酬側」のように、
+        単純な対応からはみ出した項目です。あなたの感覚と条件のあいだに、
+        まだ言語化されていない変数が動いている可能性があります。
+      </p>
+      <ul className="space-y-2">
+        {items.map((it, i) => {
+          const tone = it.pole === 'like' ? '💚' : '💔'
+          const expectedPolePos = it.pole === 'like' ? '内発・報酬側' : '外発・消耗側'
+          const actualSideLabel =
+            it.axisSide === 'left'
+              ? AXIS_SIDE_LABEL[it.keyAxis].left
+              : AXIS_SIDE_LABEL[it.keyAxis].right
+          return (
+            <li key={i} className="rounded-lg border border-indigo-100 bg-white/80 p-3">
+              <p className="text-sm">
+                <span aria-hidden="true">{tone}</span>
+                <span className="ml-1 font-medium text-slate-800">{it.text}</span>
+              </p>
+              <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                {it.pole === 'like' ? '好き' : '辛い'}なのに、{AXIS_LABEL[it.keyAxis]}軸では「{actualSideLabel}」側にいます。
+                （単純な対応では{expectedPolePos}にいるはず）
+              </p>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

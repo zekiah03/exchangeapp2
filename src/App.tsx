@@ -657,9 +657,10 @@ function App() {
                     />
                   </div>
                 )}
-                {takeaway.data && (
+                {takeaway.data && reflections.data && (
                   <Takeaway
                     takeaway={takeaway.data}
+                    reflections={reflections.data}
                     onCopy={handleCopyTakeaway}
                     onReset={handleReset}
                     onBack={handleBackToPlan}

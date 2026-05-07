@@ -59,7 +59,8 @@ export function IntentionSheet({
           で、どうしたい？
         </h2>
         <p className="mt-1 text-center text-xs text-slate-500">
-          あなたの意図をもとに、気付きを組み立てます。答えはどれも任意です。
+          全部直す必要はありません。動かしたい1軸を半歩、で十分です。
+          答えはどれも任意。空のままでも進めます。
         </p>
       </header>
 
